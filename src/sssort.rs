@@ -1,3 +1,9 @@
+//! Suffix-suffix sort (sssort): merge-based sorting for B*-suffixes.
+//!
+//! Implements Larsson-Sadakane style sorting using introspective sort
+//! (`ss_mintrosort`) with heapsort fallback, and a merge phase
+//! (`ss_swapmerge`) that combines sorted blocks using forward/backward merging.
+
 use crate::constants::{
     Depth, FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
     SS_SMERGE_STACKSIZE,
@@ -40,6 +46,7 @@ static SQQ_TABLE: [i32; 256] = [
 ];
 
 #[inline(always)]
+/// Integer log2 for 16-bit values, using the lookup table.
 fn ss_ilg(n: i32) -> i32 {
     if n & 0xff00 != 0 {
         8 + LG_TABLE[((n >> 8) & 0xff) as usize]
@@ -49,6 +56,7 @@ fn ss_ilg(n: i32) -> i32 {
 }
 
 #[inline(always)]
+/// Integer square root using the SQQ_TABLE lookup, clamped to SS_BLOCKSIZE.
 fn ss_isqrt(x: i32) -> i32 {
     let blocksize = SS_BLOCKSIZE as i32;
     if x >= blocksize * blocksize {
@@ -111,6 +119,7 @@ fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, de
     }
 }
 
+/// Insertion sort for small ranges within the suffix sort, skipping negative group markers.
 fn ss_insertionsort_impl(
     t: &[u8],
     pa: &[i32],
@@ -158,6 +167,7 @@ fn ss_insertionsort_impl(
     }
 }
 
+/// Sift-down operation for the max-heap used by `ss_heapsort`.
 fn ss_fixdown(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], mut i: usize, size: usize) {
     let v = sa[i];
     let c = td[pa_val(pa, pab, v) as usize];
@@ -189,6 +199,7 @@ fn ss_fixdown(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], mut i: usize, s
     sa[i] = v;
 }
 
+/// Heapsort fallback for `ss_mintrosort` when the introsort recursion limit is exhausted.
 fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, size: usize) {
     let mut m = size;
     if size.is_multiple_of(2) {
@@ -273,6 +284,7 @@ fn ss_median5_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], v: [usize; 5]) 
     }
 }
 
+/// Selects a pivot index using median-of-3 or median-of-5 depending on range size.
 fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, last: usize) -> usize {
     let t = (last - first) as i32;
     let middle = first + (t / 2) as usize;
@@ -518,6 +530,11 @@ fn ss_three_way_partition(
     Some((new_a, b2, new_c))
 }
 
+/// Introspective sort for B*-suffix subranges.
+///
+/// Uses quicksort with 3-way partitioning (Bentley-McIlroy scheme),
+/// falling back to heapsort when the recursion depth limit is exhausted.
+/// Small ranges (≤ SS_INSERTIONSORT_THRESHOLD) use insertion sort.
 fn ss_mintrosort(
     t: &[u8],
     pa: &[i32],
@@ -732,6 +749,7 @@ fn ss_rotate(sa: &mut [i32], first: usize, middle: usize, last: usize) {
     sa[first..last].rotate_left(middle - first);
 }
 
+/// In-place merge of two adjacent sorted runs using binary search and rotation.
 fn ss_inplacemerge(
     t: &[u8],
     pa: &[i32],
@@ -805,6 +823,8 @@ struct BufInfo {
     bufsize: usize,
 }
 
+/// Two-way merge in ascending direction using a temporary buffer.
+/// Merges sa[first..middle) and sa[middle..last) by copying the left half into `buf`.
 fn ss_mergeforward(
     t: &[u8],
     pa: &[i32],
@@ -933,6 +953,8 @@ fn skip_negatives_backward(
     (dest, src)
 }
 
+/// Two-way merge in descending direction using a temporary buffer.
+/// Merges sa[first..middle) and sa[middle..last) by copying the right half into `buf`.
 fn ss_mergebackward(
     t: &[u8],
     pa: &[i32],
@@ -1077,6 +1099,9 @@ struct SmergeFrame {
     check: i32,
 }
 
+/// Merge phase that combines sorted blocks using a temporary buffer.
+/// Chooses between forward merge, backward merge, and in-place merge
+/// based on block sizes and available buffer space.
 fn ss_swapmerge(
     t: &[u8],
     pa: &[i32],
@@ -1266,6 +1291,7 @@ const fn getidx(a: i32) -> usize {
     if a >= 0 { a as usize } else { !a as usize }
 }
 
+/// Post-merge verification: marks equal suffixes at merge boundaries with negative flags.
 fn merge_check(
     t: &[u8],
     pa: &[i32],
@@ -1288,6 +1314,7 @@ fn merge_check(
     }
 }
 
+/// Context for the B*-suffix sort, holding read-only references to text and PA array.
 pub struct SsortCtx<'a> {
     pub t: &'a [u8],
     /// Full SA snapshot (sa[0..n+1]). PA = pa[pab..], i.e. pa[pab + i] = PAb[i].
@@ -1298,6 +1325,10 @@ pub struct SsortCtx<'a> {
     pub n: i32,
 }
 
+/// Sorts B*-suffixes in sa[first..last) using introspective sort and block merging.
+///
+/// This is the main entry point for the suffix-suffix sort phase.
+/// Called from `sort_typebstar` for each non-trivial bucket.
 pub fn sssort(
     ctx: &SsortCtx,
     sa: &mut [i32],
