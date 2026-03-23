@@ -1,4 +1,4 @@
-use crate::constants::{FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
+use crate::constants::{Depth, FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
 
 #[inline(always)]
 fn tr_ilg(n: i32) -> i32 {
@@ -360,7 +360,7 @@ fn tr_copy(
     a: usize,
     b: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let v = (b as i32) - 1; // b - SA - 1 where SA=0
     // C: for(c = first, d = a - 1; c <= d; ++c) { if(...) { *++d = s; ISA[s] = d - SA; } }
@@ -408,7 +408,7 @@ fn tr_partialcopy(
     a: usize,
     b: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let v = (b as i32) - 1;
     // C: for(c = first, d = a - 1; c <= d; ++c) — d extends dynamically
@@ -1077,7 +1077,7 @@ const fn push5_and_continue(
     }
 }
 
-pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: i32) {
+pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: Depth) {
     let n = n as usize;
     let mut budget = TrBudget::new(tr_ilg(n as i32) * 2 / 3, n as i32);
 
