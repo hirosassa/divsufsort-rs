@@ -1,8 +1,10 @@
 use crate::DivSufSortError;
 use crate::constants::ALPHABET_SIZE;
 
+/// Error returned by [`sufcheck`] when the suffix array is found to be invalid.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SufCheckError {
+    /// Human-readable description of the first inconsistency found.
     pub message: String,
 }
 
@@ -14,6 +16,16 @@ impl std::fmt::Display for SufCheckError {
 
 impl std::error::Error for SufCheckError {}
 
+/// Verifies that `sa` is the correct suffix array of `t`.
+///
+/// Checks that all SA entries are in range, that suffixes are lexicographically ordered,
+/// and that the inverse SA mapping is consistent.
+///
+/// If `verbose` is `true`, diagnostic messages are printed to stderr.
+///
+/// # Errors
+///
+/// Returns [`SufCheckError`] describing the first inconsistency found.
 pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError> {
     let n = t.len();
 
@@ -126,9 +138,16 @@ fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
     i
 }
 
-/// Burrows-Wheeler変換。
-/// If sa is Some, uses the provided suffix array.
-/// If sa is None, delegates to divbwt.
+/// Computes the Burrows-Wheeler Transform of `t`, writing the result into `u`.
+///
+/// If `sa` is `Some`, the provided suffix array is used directly. If `sa` is `None`,
+/// the transform is computed via [`crate::divbwt`].
+///
+/// On success, `*idx` is set to the primary index (1-based).
+///
+/// # Errors
+///
+/// Returns [`DivSufSortError::InvalidArgument`] if arguments are inconsistent.
 pub fn bw_transform(
     t: &[u8],
     u: &mut [u8],
@@ -173,6 +192,16 @@ pub fn bw_transform(
     }
 }
 
+/// Inverts the Burrows-Wheeler Transform.
+///
+/// Given the BWT `t` and its primary index `idx`, reconstructs the original string
+/// into `u`. `a` is an optional scratch buffer of length ≥ `t.len()`; if `None`,
+/// an internal allocation is used.
+///
+/// # Errors
+///
+/// Returns [`DivSufSortError::InvalidArgument`] if `idx` is out of range or `a` is
+/// too short.
 pub fn inverse_bw_transform(
     t: &[u8],
     u: &mut [u8],
@@ -272,8 +301,10 @@ fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
     }
 }
 
-/// Pattern search using the suffix array.
-/// Returns (match count, leftmost index).
+/// Searches for pattern `p` in text `t` using the suffix array `sa`.
+///
+/// Returns `(count, left)` where `count` is the number of occurrences and `left` is the
+/// leftmost index in `sa` at which a match starts. If `count == 0`, `left` is undefined.
 pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
     let tsize = t.len() as i32;
     let psize = p.len() as i32;
@@ -356,8 +387,10 @@ pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
     (count, left)
 }
 
-/// Single-character search using the suffix array.
-/// Returns (match count, leftmost index).
+/// Searches for a single character `c` in text `t` using the suffix array `sa`.
+///
+/// Returns `(count, left)` where `count` is the number of occurrences and `left` is the
+/// leftmost index in `sa` at which a match starts. If `count == 0`, `left` is undefined.
 pub fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
     let tsize = t.len() as i32;
     let sasize = sa.len() as i32;
