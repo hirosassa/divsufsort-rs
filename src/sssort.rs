@@ -907,6 +907,32 @@ const MERGE_BUF_NEGATIVE: i32 = 1;
 /// Bit flag: the middle-side element (sa[c]) is a negative group marker.
 const MERGE_MID_NEGATIVE: i32 = 2;
 
+/// Skips over negative group markers in sa, copying elements backward from
+/// position `src` toward `limit`, writing into `dest` (also moving backward).
+/// Returns the updated `(dest, src)` positions.
+#[inline(always)]
+fn skip_negatives_backward(
+    sa: &mut [i32],
+    mut dest: usize,
+    mut src: usize,
+    limit: usize,
+) -> (usize, usize) {
+    loop {
+        sa[dest] = sa[src];
+        dest = dest.saturating_sub(1);
+        sa[src] = sa[dest];
+        if src > limit {
+            src -= 1;
+        } else {
+            break;
+        }
+        if sa[src] >= 0 {
+            break;
+        }
+    }
+    (dest, src)
+}
+
 fn ss_mergebackward(
     t: &[u8],
     pa: &[i32],
@@ -948,19 +974,7 @@ fn ss_mergebackward(
         let r = ss_compare(t, pa, p1, pa, p2, depth);
         if r > 0 {
             if x & MERGE_BUF_NEGATIVE != 0 {
-                loop {
-                    sa[a] = sa[b];
-                    a = a.saturating_sub(1);
-                    sa[b] = sa[a];
-                    if b > buf {
-                        b -= 1;
-                    } else {
-                        break;
-                    }
-                    if sa[b] >= 0 {
-                        break;
-                    }
-                }
+                (a, b) = skip_negatives_backward(sa, a, b, buf);
                 x ^= MERGE_BUF_NEGATIVE;
             }
             sa[a] = sa[b];
@@ -979,19 +993,7 @@ fn ss_mergebackward(
             };
         } else if r < 0 {
             if x & MERGE_MID_NEGATIVE != 0 {
-                loop {
-                    sa[a] = sa[c];
-                    a = a.saturating_sub(1);
-                    sa[c] = sa[a];
-                    if c > first {
-                        c -= 1;
-                    } else {
-                        break;
-                    }
-                    if sa[c] >= 0 {
-                        break;
-                    }
-                }
+                (a, c) = skip_negatives_backward(sa, a, c, first);
                 x ^= MERGE_MID_NEGATIVE;
             }
             sa[a] = sa[c];
@@ -1019,19 +1021,7 @@ fn ss_mergebackward(
             };
         } else {
             if x & MERGE_BUF_NEGATIVE != 0 {
-                loop {
-                    sa[a] = sa[b];
-                    a = a.saturating_sub(1);
-                    sa[b] = sa[a];
-                    if b > buf {
-                        b -= 1;
-                    } else {
-                        break;
-                    }
-                    if sa[b] >= 0 {
-                        break;
-                    }
-                }
+                (a, b) = skip_negatives_backward(sa, a, b, buf);
                 x ^= MERGE_BUF_NEGATIVE;
             }
             sa[a] = !sa[b];
@@ -1043,19 +1033,7 @@ fn ss_mergebackward(
             b -= 1;
             sa[b + 1] = sa[a]; // b already decremented, so b+1 = b_old
             if x & MERGE_MID_NEGATIVE != 0 {
-                loop {
-                    sa[a] = sa[c];
-                    a = a.saturating_sub(1);
-                    sa[c] = sa[a];
-                    if c > first {
-                        c -= 1;
-                    } else {
-                        break;
-                    }
-                    if sa[c] >= 0 {
-                        break;
-                    }
-                }
+                (a, c) = skip_negatives_backward(sa, a, c, first);
                 x ^= MERGE_MID_NEGATIVE;
             }
             sa[a] = sa[c];
