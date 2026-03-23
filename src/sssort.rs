@@ -355,6 +355,168 @@ struct MiSortFrame {
     limit: i32,
 }
 
+/// Bentley-McIlroy 3-way partition on sa[first..last] around pivot value `v`.
+/// Assumes sa[first] already holds the pivot element (swapped there by the caller).
+///
+/// Returns `Some((lt_end, eq_part, gt_start))` on success:
+///   - sa[first..lt_end]: elements < v
+///   - sa[lt_end..gt_start]: elements == v (eq_part is the ss_partition boundary within)
+///   - sa[gt_start..last]: elements > v
+///
+/// Returns `None` if partition is degenerate (no equal elements spanning both sides).
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn ss_three_way_partition(
+    t: &[u8],
+    pa: &[i32],
+    pab: usize,
+    sa: &mut [i32],
+    first: usize,
+    last: usize,
+    depth: i32,
+    v: i32,
+) -> Option<(usize, usize, usize)> {
+    let td_offset = depth as usize;
+    // Left scan: for(b = first; (++b < last) && ((x = Td[PA[*b]]) == v);)
+    let mut b = first + 1;
+    let mut x = 0i32;
+    while b < last {
+        x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+        if x != v {
+            break;
+        }
+        b += 1;
+    }
+    let mut a = b;
+    // if(((a = b) < last) && (x < v))
+    if a < last && x < v {
+        // for(; (++b < last) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
+        loop {
+            b += 1;
+            if b >= last {
+                break;
+            }
+            x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+            if x > v {
+                break;
+            }
+            if x == v {
+                sa.swap(b, a);
+                a += 1;
+            }
+        }
+    }
+    // Right scan: for(c = last; (b < --c) && ((x = Td[PA[*c]]) == v);)
+    let mut c = last;
+    loop {
+        if c == 0 {
+            break;
+        }
+        c -= 1;
+        if c <= b {
+            break;
+        }
+        x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+        if x != v {
+            break;
+        }
+    }
+    // d = c  (C: if((b < (d = c)) && (x > v)))
+    let mut d = c;
+    if b < c && x > v {
+        // for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
+        loop {
+            if c == 0 {
+                break;
+            }
+            c -= 1;
+            if c <= b {
+                break;
+            }
+            x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+            if x < v {
+                break;
+            }
+            if x == v {
+                sa.swap(c, d);
+                d -= 1;
+            }
+        }
+    }
+    // Main loop: for(; b < c;)
+    while b < c {
+        sa.swap(b, c);
+        // Inner left: for(; (++b < c) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
+        loop {
+            b += 1;
+            if b >= c {
+                break;
+            }
+            x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+            if x > v {
+                break;
+            }
+            if x == v {
+                sa.swap(b, a);
+                a += 1;
+            }
+        }
+        // Inner right: for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
+        loop {
+            if c == 0 {
+                break;
+            }
+            c -= 1;
+            if c <= b {
+                break;
+            }
+            x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+            if x < v {
+                break;
+            }
+            if x == v {
+                sa.swap(c, d);
+                d -= 1;
+            }
+        }
+    }
+
+    if a > d {
+        return None;
+    }
+
+    // Block swap: move equals from edges to center
+    // C: c = b - 1 (reset for blockswap)
+    let c_new = b - 1;
+    let s = (a - first).min(b - a);
+    for k in 0..s {
+        sa.swap(first + k, b - s + k);
+    }
+    // C uses signed: if((s = d - c) > (t = last - d - 1)) { s = t; }
+    let dc = d as i64 - c_new as i64; // d - (b - 1)
+    let ldd = last as i64 - d as i64 - 1; // last - d - 1 (can be negative)
+    let s2 = if dc > 0 && ldd > 0 {
+        dc.min(ldd) as usize
+    } else {
+        0
+    };
+    for k in 0..s2 {
+        sa.swap(b + k, last - s2 + k);
+    }
+
+    let new_a = first + (b - a);
+    let new_c = (last as i64 - dc) as usize;
+
+    let check_idx_ba = td_offset as i64 + pa_val(pa, pab, sa[new_a]) as i64 - 1;
+    let b2 = if v <= t[check_idx_ba as usize] as i32 {
+        new_a
+    } else {
+        ss_partition(pa, pab, sa, new_a, new_c, depth)
+    };
+
+    Some((new_a, b2, new_c))
+}
+
 fn ss_mintrosort(
     t: &[u8],
     pa: &[i32],
@@ -459,140 +621,11 @@ fn ss_mintrosort(
         let v = t[td_offset + pa_val(pa, pab, sa[pivot_idx]) as usize] as i32;
         sa.swap(first, pivot_idx);
 
-        // Left scan: for(b = first; (++b < last) && ((x = Td[PA[*b]]) == v);)
-        let mut b = first + 1;
-        let mut x = 0i32;
-        while b < last {
-            x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-            if x != v {
-                break;
-            }
-            b += 1;
-        }
-        let mut a = b;
-        // if(((a = b) < last) && (x < v))
-        if a < last && x < v {
-            // for(; (++b < last) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
-            loop {
-                b += 1;
-                if b >= last {
-                    break;
-                }
-                x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-                if x > v {
-                    break;
-                }
-                if x == v {
-                    sa.swap(b, a);
-                    a += 1;
-                }
-            }
-        }
-        // Right scan: for(c = last; (b < --c) && ((x = Td[PA[*c]]) == v);)
-        // --c always happens first, then check b < c
-        let mut c = last;
-        loop {
-            if c == 0 {
-                break;
-            }
-            c -= 1;
-            if c <= b {
-                break;
-            } // b < --c failed
-            x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-            if x != v {
-                break;
-            }
-        }
-        // d = c  (C: if((b < (d = c)) && (x > v)))
-        let mut d = c;
-        if b < c && x > v {
-            // for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
-            loop {
-                if c == 0 {
-                    break;
-                }
-                c -= 1;
-                if c <= b {
-                    break;
-                }
-                x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-                if x < v {
-                    break;
-                }
-                if x == v {
-                    sa.swap(c, d);
-                    d -= 1;
-                }
-            }
-        }
-        // Main loop: for(; b < c;)
-        while b < c {
-            sa.swap(b, c);
-            // Inner left: for(; (++b < c) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
-            loop {
-                b += 1;
-                if b >= c {
-                    break;
-                }
-                x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-                if x > v {
-                    break;
-                }
-                if x == v {
-                    sa.swap(b, a);
-                    a += 1;
-                }
-            }
-            // Inner right: for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
-            loop {
-                if c == 0 {
-                    break;
-                }
-                c -= 1;
-                if c <= b {
-                    break;
-                }
-                x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-                if x < v {
-                    break;
-                }
-                if x == v {
-                    sa.swap(c, d);
-                    d -= 1;
-                }
-            }
-        }
-
-        if a <= d {
-            // C: c = b - 1 (reset for blockswap)
-            let c_new = b - 1;
-            let s = (a - first).min(b - a);
-            for k in 0..s {
-                sa.swap(first + k, b - s + k);
-            }
-            // C uses signed: if((s = d - c) > (t = last - d - 1)) { s = t; }
-            let dc = d as i64 - c_new as i64; // d - (b - 1)
-            let ldd = last as i64 - d as i64 - 1; // last - d - 1 (can be negative)
-            let s2 = if dc > 0 && ldd > 0 {
-                dc.min(ldd) as usize
-            } else {
-                0
-            };
-            for k in 0..s2 {
-                sa.swap(b + k, last - s2 + k);
-            }
-
-            let new_a = first + (b - a);
-            let new_c = (last as i64 - dc) as usize;
-
-            let check_idx_ba = td_offset as i64 + pa_val(pa, pab, sa[new_a]) as i64 - 1;
-            let b2 = if v <= t[check_idx_ba as usize] as i32 {
-                new_a
-            } else {
-                ss_partition(pa, pab, sa, new_a, new_c, depth)
-            };
-
+        if let Some((new_a, b2, new_c)) =
+            ss_three_way_partition(t, pa, pab, sa, first, last, depth, v)
+        {
+            // Push three sub-problems [first..new_a), [b2..new_c), [new_c..last)
+            // in size order (smallest processed next via loop vars, larger two on stack).
             if new_a - first <= last - new_c {
                 if last - new_c <= new_c - b2 {
                     stack[ssize] = MiSortFrame {
@@ -699,6 +732,7 @@ fn ss_mintrosort(
                 limit = ss_ilg((new_c - b2) as i32);
             }
         } else {
+            // Degenerate partition: no equal elements spanning both sides
             limit += 1;
             let check_idx_el = td_offset as i64 + pa_val(pa, pab, sa[first]) as i64 - 1;
             if (t[check_idx_el as usize] as i32) < v {

@@ -33,7 +33,11 @@ fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
     &mut bb[(c0 << 8) | c1]
 }
 
-fn sort_typebstar(
+/// Scans text right-to-left, classifying suffixes into A/B/B* types and counting
+/// bucket sizes. B*-suffix positions are stored at the tail of `sa`.
+/// Returns `m` = number of B*-suffixes found.
+#[inline(always)]
+fn count_and_classify_suffixes(
     t: &[u8],
     sa: &mut [i32],
     bkt_a: &mut [i32],
@@ -82,7 +86,132 @@ fn sort_typebstar(
             }
         }
     }
-    m = n - m;
+    n - m
+}
+
+/// Builds the inverse suffix array (ISA) from sorted B*-suffixes.
+/// Processes sa[0..m] and writes group labels into sa[isab..isab+m].
+#[inline(always)]
+fn build_isa_from_sorted_bstar(sa: &mut [i32], isab: usize, m: usize) {
+    let mut i = m as isize - 1;
+    while 0 <= i {
+        if sa[i as usize] >= 0 {
+            let j_val = i;
+            loop {
+                sa[isab + sa[i as usize] as usize] = i as i32;
+                i -= 1;
+                if i < 0 || sa[i as usize] < 0 {
+                    break;
+                }
+            }
+            sa[(i + 1) as usize] = (i - j_val) as i32;
+            if i <= 0 {
+                break;
+            }
+        }
+        let j_val = i;
+        loop {
+            sa[i as usize] = !sa[i as usize];
+            sa[isab + sa[i as usize] as usize] = j_val as i32;
+            i -= 1;
+            if i < 0 || sa[i as usize] >= 0 {
+                break;
+            }
+        }
+        if i >= 0 {
+            sa[isab + sa[i as usize] as usize] = j_val as i32;
+        }
+        i -= 1;
+    }
+}
+
+/// Scatters sorted B*-suffix positions back to their text positions.
+/// Reads ranks from sa[isab..] and writes text positions into sa[rank].
+#[inline(always)]
+fn scatter_bstar_to_sa(t: &[u8], sa: &mut [i32], isab: usize, n: usize, m: usize) {
+    let mut i = n as isize - 1;
+    let mut j_val = m;
+    let mut c0 = t[n - 1] as usize;
+    while 0 <= i {
+        i -= 1;
+        let mut c1 = c0;
+        while 0 <= i && {
+            c0 = t[i as usize] as usize;
+            c0 >= c1
+        } {
+            i -= 1;
+            c1 = c0;
+        }
+        if 0 <= i {
+            let tv = i as usize;
+            i -= 1;
+            c1 = c0;
+            while 0 <= i && {
+                c0 = t[i as usize] as usize;
+                c0 <= c1
+            } {
+                i -= 1;
+                c1 = c0;
+            }
+            j_val -= 1;
+            let rank = sa[isab + j_val] as usize;
+            sa[rank] = if tv == 0 || (tv as isize - i) > 1 {
+                tv as i32
+            } else {
+                !(tv as i32)
+            };
+        }
+    }
+}
+
+/// Copies sorted B*-suffixes into their final bucket positions and updates
+/// bucket boundaries for the subsequent construct_sa/construct_bwt phase.
+#[inline(always)]
+fn place_sorted_bstar_in_buckets(
+    sa: &mut [i32],
+    bkt_a: &[i32],
+    bkt_b: &mut [i32],
+    scatter_out: &[i32],
+    m: usize,
+    n: usize,
+) {
+    for x in sa.iter_mut() {
+        *x = 0;
+    }
+    *bucket_b_mut(bkt_b, ALPHABET_SIZE - 1, ALPHABET_SIZE - 1) = n as i32;
+    let mut k = m as isize - 1;
+    for c0 in (0..=(ALPHABET_SIZE as isize - 2)).rev() {
+        let c0 = c0 as usize;
+        let mut i_val = bucket_a(bkt_a, c0 + 1) as isize - 1;
+        for c1 in (c0 + 1..ALPHABET_SIZE).rev() {
+            let t_val = i_val - bucket_b(bkt_b, c0, c1) as isize;
+            *bucket_b_mut(bkt_b, c0, c1) = i_val as i32;
+
+            let j_val = bucket_bstar(bkt_b, c0, c1) as isize;
+            let mut ii = t_val;
+            let mut kk = k;
+            while j_val <= kk {
+                sa[ii as usize] = scatter_out[kk as usize];
+                ii -= 1;
+                kk -= 1;
+            }
+            i_val = ii;
+            k = kk;
+        }
+        *bucket_bstar_mut(bkt_b, c0, c0 + 1) =
+            (i_val - bucket_b(bkt_b, c0, c0) as isize + 1) as i32;
+        *bucket_b_mut(bkt_b, c0, c0) = i_val as i32;
+    }
+}
+
+fn sort_typebstar(
+    t: &[u8],
+    sa: &mut [i32],
+    bkt_a: &mut [i32],
+    bkt_b: &mut [i32],
+    n: usize,
+) -> usize {
+    let m = count_and_classify_suffixes(t, sa, bkt_a, bkt_b, n);
 
     {
         let mut ii: i32 = 0;
@@ -181,114 +310,17 @@ fn sort_typebstar(
             });
         }
 
-        {
-            let mut i = m as isize - 1;
-            while 0 <= i {
-                if sa[i as usize] >= 0 {
-                    let j_val = i;
-                    loop {
-                        sa[isab + sa[i as usize] as usize] = i as i32;
-                        i -= 1;
-                        if i < 0 || sa[i as usize] < 0 {
-                            break;
-                        }
-                    }
-                    sa[(i + 1) as usize] = (i - j_val) as i32;
-                    if i <= 0 {
-                        break;
-                    }
-                }
-                let j_val = i;
-                loop {
-                    sa[i as usize] = !sa[i as usize];
-                    sa[isab + sa[i as usize] as usize] = j_val as i32;
-                    i -= 1;
-                    if i < 0 || sa[i as usize] >= 0 {
-                        break;
-                    }
-                }
-                if i >= 0 {
-                    sa[isab + sa[i as usize] as usize] = j_val as i32;
-                }
-                i -= 1; // corresponds to --i in the C for-loop
-            }
-        }
+        build_isa_from_sorted_bstar(sa, isab, m);
 
         {
             let (sa_left, sa_right) = sa.split_at_mut(m);
-            // ISAb = sa[m..], SA = sa[0..m]
             trsort(sa_right, sa_left, m as i32, 1);
         }
 
-        {
-            let mut i = n as isize - 1;
-            let mut j_val = m;
-            let mut c0 = t[n - 1] as usize;
-            while 0 <= i {
-                i -= 1;
-                let mut c1 = c0;
-                while 0 <= i && {
-                    c0 = t[i as usize] as usize;
-                    c0 >= c1
-                } {
-                    i -= 1;
-                    c1 = c0;
-                }
-                if 0 <= i {
-                    let tv = i as usize;
-                    i -= 1;
-                    c1 = c0;
-                    while 0 <= i && {
-                        c0 = t[i as usize] as usize;
-                        c0 <= c1
-                    } {
-                        i -= 1;
-                        c1 = c0;
-                    }
-                    j_val -= 1;
-                    let rank = sa[isab + j_val] as usize;
-                    sa[rank] = if tv == 0 || (tv as isize - i) > 1 {
-                        tv as i32
-                    } else {
-                        !(tv as i32)
-                    };
-                }
-            }
-        }
+        scatter_bstar_to_sa(t, sa, isab, n, m);
 
-        // After scatter, SA[0..m] holds the sorted B*-suffix text positions needed by copy.
-        // SA[m..n] contains stale data (ISAb, sssort buffer, PAb) no longer needed.
-        // construct_sa requires every SA position that is NOT a B*-bucket endpoint to be 0.
-        // Strategy: save the scatter output, zero all of SA[0..n], then run copy reading
-        // from the saved scatter output so only the bucket endpoints get non-zero values.
         let scatter_out: Vec<i32> = sa[0..m].to_vec();
-        for x in sa.iter_mut() {
-            *x = 0;
-        }
-        *bucket_b_mut(bkt_b, ALPHABET_SIZE - 1, ALPHABET_SIZE - 1) = n as i32; // end point
-        let mut k = m as isize - 1;
-        for c0 in (0..=(ALPHABET_SIZE as isize - 2)).rev() {
-            let c0 = c0 as usize;
-            let mut i_val = bucket_a(bkt_a, c0 + 1) as isize - 1;
-            for c1 in (c0 + 1..ALPHABET_SIZE).rev() {
-                let t_val = i_val - bucket_b(bkt_b, c0, c1) as isize;
-                *bucket_b_mut(bkt_b, c0, c1) = i_val as i32; // end point
-
-                let j_val = bucket_bstar(bkt_b, c0, c1) as isize;
-                let mut ii = t_val;
-                let mut kk = k;
-                while j_val <= kk {
-                    sa[ii as usize] = scatter_out[kk as usize];
-                    ii -= 1;
-                    kk -= 1;
-                }
-                i_val = ii;
-                k = kk;
-            }
-            *bucket_bstar_mut(bkt_b, c0, c0 + 1) =
-                (i_val - bucket_b(bkt_b, c0, c0) as isize + 1) as i32; // start point
-            *bucket_b_mut(bkt_b, c0, c0) = i_val as i32; // end point
-        }
+        place_sorted_bstar_in_buckets(sa, bkt_a, bkt_b, &scatter_out, m, n);
     }
 
     m
