@@ -73,11 +73,11 @@ Benchmarks compare this library against the original **C libdivsufsort** (compil
 
 | Corpus | Rust (this crate) | C libdivsufsort | Ratio |
 |---|---|---|---|
-| random_binary | 11.3 ms (84.7 MiB/s) | 14.0 ms (68.3 MiB/s) | **1.24× faster** |
-| text_26 | 13.2 ms (72.0 MiB/s) | 24.0 ms (39.8 MiB/s) | **1.82× faster** |
-| fibonacci | 30.1 ms (31.7 MiB/s) | 27.6 ms (34.6 MiB/s) | 0.97× (comparable) |
+| random_binary | 11.2 ms (84.9 MiB/s) | 13.7 ms (69.4 MiB/s) | **1.22× faster** |
+| text_26 | 13.2 ms (72.4 MiB/s) | 23.8 ms (40.1 MiB/s) | **1.80× faster** |
+| fibonacci | 30.1 ms (31.7 MiB/s) | 27.4 ms (34.8 MiB/s) | 0.91× |
 
-The parallel B\*-bucket sort drives the speedup for `random_binary` and `text_26`. For `fibonacci` the input produces only 1–2 non-trivial buckets, so parallelism provides no benefit and the result is comparable to C.
+The parallel B\*-bucket sort drives the speedup for `random_binary` and `text_26`. For `fibonacci` the input produces only 1–2 non-trivial buckets, so parallelism provides no benefit and C is slightly faster due to lower single-thread overhead.
 
 ### Running the benchmarks
 

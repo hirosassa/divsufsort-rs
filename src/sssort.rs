@@ -120,6 +120,7 @@ fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, de
 }
 
 /// Insertion sort for small ranges within the suffix sort, skipping negative group markers.
+#[inline]
 fn ss_insertionsort_impl(
     t: &[u8],
     pa: &[i32],
@@ -312,6 +313,7 @@ fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, las
 
 /// Partitions [first..last) into two parts and returns the boundary index.
 /// pa is the full SA snapshot; pab is the PAb offset (PA = SA[pab..]).
+#[inline]
 fn ss_partition(
     pa: &[i32],
     pab: usize,
