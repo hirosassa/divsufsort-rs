@@ -1,5 +1,8 @@
 # divsufsort-rs
 
+[![build](https://github.com/hirosassa/divsufsort-rs/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/hirosassa/divsufsort-rs/actions/workflows/test.yaml)
+[![codecov](https://codecov.io/gh/hirosassa/divsufsort-rs/branch/main/graph/badge.svg?token=gSFzgTfVwv)](https://codecov.io/gh/hirosassa/divsufsort-rs)
+
 Pure Rust port of [libdivsufsort](https://github.com/y-256/libdivsufsort) — a fast suffix array construction library based on the induced-sorting (IS) algorithm.
 
 ## What it does
