@@ -1,5 +1,5 @@
 #[cfg(feature = "c-bench")]
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 #[cfg(feature = "c-bench")]
 use divsufsort_rs::divsufsort as divsufsort_rust;
 #[cfg(feature = "c-bench")]

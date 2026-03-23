@@ -4,7 +4,7 @@ Pure Rust port of [libdivsufsort](https://github.com/y-256/libdivsufsort) — a 
 
 ## What it does
 
-Constructs the **suffix array** of a byte string in O(n log n) time. A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
+Constructs the **suffix array** of a byte string in O(n) time. A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
 
 The implementation closely follows the original C library by Yuta Mori, including the same sssort / trsort refinement pipeline based on the induced-sorting (IS) algorithm described in:
 

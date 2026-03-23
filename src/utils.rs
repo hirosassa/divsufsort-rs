@@ -185,7 +185,9 @@ pub fn inverse_bw_transform(
         return Err(DivSufSortError::InvalidArgument);
     }
     if n <= 1 {
-        if n == 1 { u[0] = t[0]; }
+        if n == 1 {
+            u[0] = t[0];
+        }
         return Ok(());
     }
 
@@ -263,7 +265,11 @@ fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
         j += 1;
     }
     *match_len = j;
-    if r == 0 { -(if j != psize { 1 } else { 0 }) } else { r }
+    if r == 0 {
+        -(if j != psize { 1 } else { 0 })
+    } else {
+        r
+    }
 }
 
 /// Pattern search using the suffix array.
@@ -369,7 +375,11 @@ pub fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
 
     while 0 < size {
         let p = sa[(i + half) as usize];
-        let r = if p < tsize { t[p as usize] as i32 - c } else { -1 };
+        let r = if p < tsize {
+            t[p as usize] as i32 - c
+        } else {
+            -1
+        };
         if r < 0 {
             i += half + 1;
             half -= (size & 1) ^ 1;
@@ -383,7 +393,11 @@ pub fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
             let mut lhalf = lsize2 >> 1;
             while 0 < lsize2 {
                 let lp = sa[(j + lhalf) as usize];
-                let lr = if lp < tsize { t[lp as usize] as i32 - c } else { -1 };
+                let lr = if lp < tsize {
+                    t[lp as usize] as i32 - c
+                } else {
+                    -1
+                };
                 if lr < 0 {
                     j += lhalf + 1;
                     lhalf -= (lsize2 & 1) ^ 1;
@@ -396,7 +410,11 @@ pub fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
             let mut rhalf = rsize2 >> 1;
             while 0 < rsize2 {
                 let rp = sa[(k + rhalf) as usize];
-                let rr = if rp < tsize { t[rp as usize] as i32 - c } else { -1 };
+                let rr = if rp < tsize {
+                    t[rp as usize] as i32 - c
+                } else {
+                    -1
+                };
                 if rr <= 0 {
                     k += rhalf + 1;
                     rhalf -= (rsize2 & 1) ^ 1;

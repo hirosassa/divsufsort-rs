@@ -1,8 +1,10 @@
-use divsufsort_rs::{divsufsort, divbwt, sufcheck, inverse_bw_transform};
+use divsufsort_rs::{divbwt, divsufsort, inverse_bw_transform, sufcheck};
 
 // Deterministic pseudo-random number generator using a simple LCG
 fn lcg_next(state: &mut u64) -> u8 {
-    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *state = state
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     ((*state >> 33) & 0xff) as u8
 }
 
@@ -15,7 +17,8 @@ fn lcg_bytes(seed: u64, n: usize) -> Vec<u8> {
 fn assert_sufcheck(t: &[u8]) {
     let mut sa = vec![0i32; t.len()];
     divsufsort(t, &mut sa).unwrap();
-    sufcheck(t, &sa, false).unwrap_or_else(|e| panic!("sufcheck failed for input {:?}: {}", t, e.message));
+    sufcheck(t, &sa, false)
+        .unwrap_or_else(|e| panic!("sufcheck failed for input {:?}: {}", t, e.message));
 }
 
 // Helper: verify BWT round-trip (transform then inverse)
@@ -97,8 +100,14 @@ fn test_sufcheck_all_same_large() {
 #[test]
 fn test_sufcheck_binary_alphabet_short() {
     let cases: &[&[u8]] = &[
-        b"ab", b"ba", b"aab", b"abb", b"aabb",
-        b"abab", b"abba", b"aabbaabb",
+        b"ab",
+        b"ba",
+        b"aab",
+        b"abb",
+        b"aabb",
+        b"abab",
+        b"abba",
+        b"aabbaabb",
     ];
     for &t in cases {
         assert_sufcheck(t);
@@ -108,7 +117,9 @@ fn test_sufcheck_binary_alphabet_short() {
 #[test]
 fn test_sufcheck_binary_alphabet_long() {
     // alternating: ababab...
-    let t: Vec<u8> = (0..200).map(|i| if i % 2 == 0 { b'a' } else { b'b' }).collect();
+    let t: Vec<u8> = (0..200)
+        .map(|i| if i % 2 == 0 { b'a' } else { b'b' })
+        .collect();
     assert_sufcheck(&t);
 }
 
@@ -216,7 +227,9 @@ fn test_bwt_roundtrip_all_same() {
 
 #[test]
 fn test_bwt_roundtrip_binary_repeat() {
-    let t: Vec<u8> = (0..200).map(|i| if i % 3 == 0 { b'a' } else { b'b' }).collect();
+    let t: Vec<u8> = (0..200)
+        .map(|i| if i % 3 == 0 { b'a' } else { b'b' })
+        .collect();
     assert_bwt_roundtrip(&t);
 }
 
@@ -239,10 +252,14 @@ fn test_bwt_roundtrip_all_256_bytes() {
 fn test_sufcheck_text26_1m() {
     fn lcg_corpus_text(size: usize) -> Vec<u8> {
         let mut seed = 0x517cc1b727220a95u64;
-        (0..size).map(|_| {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            b'a' + ((seed >> 33) as u8 % 26)
-        }).collect()
+        (0..size)
+            .map(|_| {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                b'a' + ((seed >> 33) as u8 % 26)
+            })
+            .collect()
     }
     let t = lcg_corpus_text(1_000_000);
     assert_sufcheck(&t);
@@ -259,10 +276,14 @@ fn brute_force_sa(t: &[u8]) -> Vec<i32> {
 fn test_text26_small_correctness() {
     fn lcg_corpus_text(size: usize) -> Vec<u8> {
         let mut seed = 0x517cc1b727220a95u64;
-        (0..size).map(|_| {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            b'a' + ((seed >> 33) as u8 % 26)
-        }).collect()
+        (0..size)
+            .map(|_| {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                b'a' + ((seed >> 33) as u8 % 26)
+            })
+            .collect()
     }
     for size in [100, 500, 1000, 5000, 10000, 50000, 100000] {
         let t = lcg_corpus_text(size);
@@ -277,10 +298,14 @@ fn test_text26_small_correctness() {
 fn test_text26_large_sufcheck() {
     fn lcg_corpus_text(size: usize) -> Vec<u8> {
         let mut seed = 0x517cc1b727220a95u64;
-        (0..size).map(|_| {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            b'a' + ((seed >> 33) as u8 % 26)
-        }).collect()
+        (0..size)
+            .map(|_| {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                b'a' + ((seed >> 33) as u8 % 26)
+            })
+            .collect()
     }
     for size in [200000, 500000, 1000000] {
         let t = lcg_corpus_text(size);

@@ -1,15 +1,15 @@
 use crate::constants::{TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
 
 static LG_TABLE: [i32; 256] = [
-    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7,
 ];
 
 #[inline(always)]
@@ -45,7 +45,9 @@ fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
         let mut r = 0i32;
         while b >= first_i {
             r = isad[t as usize] - isad[sa[b as usize] as usize];
-            if r >= 0 { break; }
+            if r >= 0 {
+                break;
+            }
             // C: do { *(b+1) = *b; } while((first <= --b) && (*b < 0))
             sa[(b + 1) as usize] = sa[b as usize]; // shift non-negative element
             b -= 1;
@@ -129,7 +131,6 @@ fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
     }
 }
 
-
 #[inline(always)]
 fn tr_median3_idx(isad: &[i32], sa: &[i32], mut v1: usize, mut v2: usize, v3: usize) -> usize {
     if isad[sa[v1] as usize] > isad[sa[v2] as usize] {
@@ -207,7 +208,12 @@ struct TrBudget {
 
 impl TrBudget {
     const fn new(chance: i32, incval: i32) -> Self {
-        Self { chance, remain: incval, incval, count: 0 }
+        Self {
+            chance,
+            remain: incval,
+            incval,
+            count: 0,
+        }
     }
 
     #[inline(always)]
@@ -262,22 +268,37 @@ fn tr_partition(
     // Right scan: for(c = last; (b < --c) && ((x = ISAd[*c]) == v);)
     let mut c = last;
     loop {
-        if c == 0 { break; }
+        if c == 0 {
+            break;
+        }
         c -= 1;
-        if c <= b { break; }  // b < --c failed
+        if c <= b {
+            break;
+        } // b < --c failed
         x = isad[sa[c] as usize];
-        if x != v { break; }
+        if x != v {
+            break;
+        }
     }
     // d = c  (C: if((b < (d = c)) && (x > v)))
     let mut d = c;
     if b < c && x > v {
         loop {
-            if c == 0 { break; }
+            if c == 0 {
+                break;
+            }
             c -= 1;
-            if c <= b { break; }
+            if c <= b {
+                break;
+            }
             x = isad[sa[c] as usize];
-            if x < v { break; }
-            if x == v { sa.swap(c, d); d -= 1; }  // C: SWAP(*c,*d); --d
+            if x < v {
+                break;
+            }
+            if x == v {
+                sa.swap(c, d);
+                d -= 1;
+            } // C: SWAP(*c,*d); --d
         }
     }
     // Main loop: for(; b < c;)
@@ -286,19 +307,35 @@ fn tr_partition(
         // Inner left: for(; (++b < c) && ((x = ISAd[*b]) <= v);)
         loop {
             b += 1;
-            if b >= c { break; }
+            if b >= c {
+                break;
+            }
             x = isad[sa[b] as usize];
-            if x > v { break; }
-            if x == v { sa.swap(b, a); a += 1; }
+            if x > v {
+                break;
+            }
+            if x == v {
+                sa.swap(b, a);
+                a += 1;
+            }
         }
         // Inner right: for(; (b < --c) && ((x = ISAd[*c]) >= v);)
         loop {
-            if c == 0 { break; }
+            if c == 0 {
+                break;
+            }
             c -= 1;
-            if c <= b { break; }
+            if c <= b {
+                break;
+            }
             x = isad[sa[c] as usize];
-            if x < v { break; }
-            if x == v { sa.swap(c, d); d -= 1; }  // C: SWAP(*c,*d); --d
+            if x < v {
+                break;
+            }
+            if x == v {
+                sa.swap(c, d);
+                d -= 1;
+            } // C: SWAP(*c,*d); --d
         }
     }
 
@@ -306,12 +343,20 @@ fn tr_partition(
         // C: c = b - 1 (reset for blockswap)
         let c_new = b - 1;
         let s = (a - first).min(b - a);
-        for k in 0..s { sa.swap(first + k, b - s + k); }
+        for k in 0..s {
+            sa.swap(first + k, b - s + k);
+        }
         // C uses signed: if((s = d - c) > (t = last - d - 1)) { s = t; }
         let dc = d as i64 - c_new as i64;
         let ldd = last as i64 - d as i64 - 1;
-        let s2 = if dc > 0 && ldd > 0 { dc.min(ldd) as usize } else { 0 };
-        for k in 0..s2 { sa.swap(b + k, last - s2 + k); }
+        let s2 = if dc > 0 && ldd > 0 {
+            dc.min(ldd) as usize
+        } else {
+            0
+        };
+        for k in 0..s2 {
+            sa.swap(b + k, last - s2 + k);
+        }
         // C: first += (b - a), last -= (d - c) where c = b-1
         let new_first = first + (b - a);
         let new_last = (last as i64 - dc) as usize;
@@ -351,14 +396,18 @@ fn tr_copy(
     if last > 0 {
         let mut c2 = last - 1;
         loop {
-            if e >= d2 { break; } // C condition: e < d
+            if e >= d2 {
+                break;
+            } // C condition: e < d
             let s = sa[c2] - depth;
             if s >= 0 && isa[s as usize] == v {
                 d2 -= 1;
                 sa[d2] = s;
                 isa[s as usize] = d2 as i32;
             }
-            if c2 == 0 { break; }
+            if c2 == 0 {
+                break;
+            }
             c2 -= 1;
         }
     }
@@ -417,7 +466,9 @@ fn tr_partialcopy(
     if last > 0 {
         let mut c2 = last - 1;
         loop {
-            if e2 >= d2 { break; } // C condition: e < d (equivalent with d2 = b-1)
+            if e2 >= d2 {
+                break;
+            } // C condition: e < d (equivalent with d2 = b-1)
             let s = sa[c2] - depth;
             if s >= 0 && isa[s as usize] == v {
                 d2 -= 1;
@@ -429,7 +480,9 @@ fn tr_partialcopy(
                 }
                 isa[s as usize] = newrank;
             }
-            if c2 == 0 { break; }
+            if c2 == 0 {
+                break;
+            }
             c2 -= 1;
         }
     }
@@ -446,9 +499,9 @@ struct TrFrame {
 
 struct TrSortState<'a> {
     ssize: &'a mut usize,
-    isad:  &'a mut usize,
+    isad: &'a mut usize,
     first: &'a mut usize,
-    last:  &'a mut usize,
+    last: &'a mut usize,
     limit: &'a mut i32,
     trlink: &'a mut i32,
 }
@@ -462,8 +515,13 @@ fn tr_introsort(
     budget: &mut TrBudget,
 ) {
     let incr = isad_init; // ISAd - ISA = isad_init (ISA is 0-based)
-    let mut stack = [TrFrame { isad: 0, first: 0, last: 0, limit: 0, trlink: 0 };
-        TR_STACKSIZE];
+    let mut stack = [TrFrame {
+        isad: 0,
+        first: 0,
+        last: 0,
+        limit: 0,
+        trlink: 0,
+    }; TR_STACKSIZE];
     let mut ssize: usize = 0;
 
     let mut isad = isad_init;
@@ -506,7 +564,13 @@ fn tr_introsort(
                 }
 
                 if b - a > 1 {
-                    stack[ssize] = TrFrame { isad: 0, first: a, last: b, limit: 0, trlink: 0 };
+                    stack[ssize] = TrFrame {
+                        isad: 0,
+                        first: a,
+                        last: b,
+                        limit: 0,
+                        trlink: 0,
+                    };
                     ssize += 1;
                     stack[ssize] = TrFrame {
                         isad: isad - incr,
@@ -520,8 +584,13 @@ fn tr_introsort(
                 }
                 if a - first <= last - b {
                     if a - first > 1 {
-                        stack[ssize] =
-                            TrFrame { isad, first: b, last, limit: tr_ilg((last - b) as i32), trlink };
+                        stack[ssize] = TrFrame {
+                            isad,
+                            first: b,
+                            last,
+                            limit: tr_ilg((last - b) as i32),
+                            trlink,
+                        };
                         ssize += 1;
                         last = a;
                         limit = tr_ilg((a - first) as i32);
@@ -529,14 +598,25 @@ fn tr_introsort(
                         first = b;
                         limit = tr_ilg((last - b) as i32);
                     } else {
-                        if ssize == 0 { return; }
+                        if ssize == 0 {
+                            return;
+                        }
                         ssize -= 1;
                         let f = stack[ssize];
-                        isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                        isad = f.isad;
+                        first = f.first;
+                        last = f.last;
+                        limit = f.limit;
+                        trlink = f.trlink;
                     }
                 } else if last - b > 1 {
-                    stack[ssize] =
-                        TrFrame { isad, first, last: a, limit: tr_ilg((a - first) as i32), trlink };
+                    stack[ssize] = TrFrame {
+                        isad,
+                        first,
+                        last: a,
+                        limit: tr_ilg((a - first) as i32),
+                        trlink,
+                    };
                     ssize += 1;
                     first = b;
                     limit = tr_ilg((last - b) as i32);
@@ -544,10 +624,16 @@ fn tr_introsort(
                     last = a;
                     limit = tr_ilg((a - first) as i32);
                 } else {
-                    if ssize == 0 { return; }
+                    if ssize == 0 {
+                        return;
+                    }
                     ssize -= 1;
                     let f = stack[ssize];
-                    isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                    isad = f.isad;
+                    first = f.first;
+                    last = f.last;
+                    limit = f.limit;
+                    trlink = f.trlink;
                 }
             } else if limit == -2 {
                 ssize -= 1;
@@ -562,10 +648,16 @@ fn tr_introsort(
                     }
                     tr_partialcopy(isa, sa, first, a, b, last, isad as i32);
                 }
-                if ssize == 0 { return; }
+                if ssize == 0 {
+                    return;
+                }
                 ssize -= 1;
                 let f = stack[ssize];
-                isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                isad = f.isad;
+                first = f.first;
+                last = f.last;
+                limit = f.limit;
+                trlink = f.trlink;
             } else {
                 if sa[first] >= 0 {
                     let mut a = first;
@@ -580,7 +672,9 @@ fn tr_introsort(
                     loop {
                         sa[a] = !sa[a];
                         a += 1;
-                        if a >= last || sa[a] >= 0 { break; }
+                        if a >= last || sa[a] >= 0 {
+                            break;
+                        }
                     }
                     // a = pivot position (first non-negative element, same as a after the C do-while)
                     // C: next = (ISA[*a] != ISAd[*a]) ? tr_ilg(a - first + 1) : -1;
@@ -606,14 +700,25 @@ fn tr_introsort(
 
                     if budget.check((run_end - first) as i32) {
                         if run_end - first <= last - run_end {
-                            stack[ssize] = TrFrame { isad, first: run_end, last, limit: -3, trlink };
+                            stack[ssize] = TrFrame {
+                                isad,
+                                first: run_end,
+                                last,
+                                limit: -3,
+                                trlink,
+                            };
                             ssize += 1;
                             isad += incr;
                             last = run_end;
                             limit = next;
                         } else if last - run_end > 1 {
-                            stack[ssize] =
-                                TrFrame { isad: isad + incr, first, last: run_end, limit: next, trlink };
+                            stack[ssize] = TrFrame {
+                                isad: isad + incr,
+                                first,
+                                last: run_end,
+                                limit: next,
+                                trlink,
+                            };
                             ssize += 1;
                             first = run_end;
                             limit = -3;
@@ -623,22 +728,36 @@ fn tr_introsort(
                             limit = next;
                         }
                     } else {
-                        if trlink >= 0 { stack[trlink as usize].limit = -1; }
+                        if trlink >= 0 {
+                            stack[trlink as usize].limit = -1;
+                        }
                         if last - run_end > 1 {
                             first = run_end;
                             limit = -3;
                         } else {
-                            if ssize == 0 { return; }
+                            if ssize == 0 {
+                                return;
+                            }
                             ssize -= 1;
                             let f = stack[ssize];
-                            isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                            isad = f.isad;
+                            first = f.first;
+                            last = f.last;
+                            limit = f.limit;
+                            trlink = f.trlink;
                         }
                     }
                 } else {
-                    if ssize == 0 { return; }
+                    if ssize == 0 {
+                        return;
+                    }
                     ssize -= 1;
                     let f = stack[ssize];
-                    isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                    isad = f.isad;
+                    first = f.first;
+                    last = f.last;
+                    limit = f.limit;
+                    trlink = f.trlink;
                 }
             }
             continue;
@@ -684,13 +803,16 @@ fn tr_introsort(
         // isad_slice (= isa[isad..]) and swaps within sa; isa and sa are disjoint.
         // After tr_partition returns the slice is no longer live, so the subsequent reads
         // and writes to isa are safe with no aliased reference outstanding.
-        let isad_slice: &[i32] = unsafe {
-            std::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad)
-        };
+        let isad_slice: &[i32] =
+            unsafe { std::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad) };
         let (a, b) = tr_partition_owned(isad_slice, sa, first, first + 1, last, v);
 
         if last - first != b - a {
-            let next = if isa[sa[a] as usize] != v { tr_ilg((b - a) as i32) } else { -1 };
+            let next = if isa[sa[a] as usize] != v {
+                tr_ilg((b - a) as i32)
+            } else {
+                -1
+            };
 
             let v2 = (a as i32) - 1;
             for k in first..a {
@@ -705,48 +827,85 @@ fn tr_introsort(
 
             if b - a > 1 && budget.check((b - a) as i32) {
                 let mut state = TrSortState {
-                    ssize: &mut ssize, isad: &mut isad,
-                    first: &mut first, last: &mut last,
-                    limit: &mut limit, trlink: &mut trlink,
+                    ssize: &mut ssize,
+                    isad: &mut isad,
+                    first: &mut first,
+                    last: &mut last,
+                    limit: &mut limit,
+                    trlink: &mut trlink,
                 };
                 push5_and_continue(&mut stack, &mut state, incr, a, b, next);
             } else {
-                if b - a > 1 && trlink >= 0 { stack[trlink as usize].limit = -1; }
+                if b - a > 1 && trlink >= 0 {
+                    stack[trlink as usize].limit = -1;
+                }
                 if a - first <= last - b {
                     if a - first > 1 {
-                        stack[ssize] = TrFrame { isad, first: b, last, limit, trlink };
+                        stack[ssize] = TrFrame {
+                            isad,
+                            first: b,
+                            last,
+                            limit,
+                            trlink,
+                        };
                         ssize += 1;
                         last = a;
                     } else if last - b > 1 {
                         first = b;
                     } else {
-                        if ssize == 0 { return; }
+                        if ssize == 0 {
+                            return;
+                        }
                         ssize -= 1;
                         let f = stack[ssize];
-                        isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                        isad = f.isad;
+                        first = f.first;
+                        last = f.last;
+                        limit = f.limit;
+                        trlink = f.trlink;
                     }
                 } else if last - b > 1 {
-                    stack[ssize] = TrFrame { isad, first, last: a, limit, trlink };
+                    stack[ssize] = TrFrame {
+                        isad,
+                        first,
+                        last: a,
+                        limit,
+                        trlink,
+                    };
                     ssize += 1;
                     first = b;
                 } else if a - first > 1 {
                     last = a;
                 } else {
-                    if ssize == 0 { return; }
+                    if ssize == 0 {
+                        return;
+                    }
                     ssize -= 1;
                     let f = stack[ssize];
-                    isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+                    isad = f.isad;
+                    first = f.first;
+                    last = f.last;
+                    limit = f.limit;
+                    trlink = f.trlink;
                 }
             }
         } else if budget.check((last - first) as i32) {
             limit = tr_ilg((last - first) as i32);
             isad += incr;
         } else {
-            if trlink >= 0 { stack[trlink as usize].limit = -1; }
-            if ssize == 0 { return; }
+            if trlink >= 0 {
+                stack[trlink as usize].limit = -1;
+            }
+            if ssize == 0 {
+                return;
+            }
             ssize -= 1;
             let f = stack[ssize];
-            isad = f.isad; first = f.first; last = f.last; limit = f.limit; trlink = f.trlink;
+            isad = f.isad;
+            first = f.first;
+            last = f.last;
+            limit = f.limit;
+            trlink = f.trlink;
         }
     }
 }
@@ -778,65 +937,167 @@ fn push5_and_continue(
     if a - af <= al - b {
         if al - b <= b - a {
             if a - af > 1 {
-                stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+                stack[*state.ssize] = TrFrame {
+                    isad: *state.isad + incr,
+                    first: a,
+                    last: b,
+                    limit: next,
+                    trlink: tl,
+                };
                 *state.ssize += 1;
-                stack[*state.ssize] = TrFrame { isad: *state.isad, first: b, last: al, limit: lim, trlink: tl };
+                stack[*state.ssize] = TrFrame {
+                    isad: *state.isad,
+                    first: b,
+                    last: al,
+                    limit: lim,
+                    trlink: tl,
+                };
                 *state.ssize += 1;
                 *state.last = a;
             } else if al - b > 1 {
-                stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+                stack[*state.ssize] = TrFrame {
+                    isad: *state.isad + incr,
+                    first: a,
+                    last: b,
+                    limit: next,
+                    trlink: tl,
+                };
                 *state.ssize += 1;
                 *state.first = b;
             } else {
-                *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+                *state.isad += incr;
+                *state.first = a;
+                *state.last = b;
+                *state.limit = next;
             }
         } else if a - af <= b - a {
-            stack[*state.ssize] = TrFrame { isad: *state.isad, first: b, last: al, limit: lim, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad,
+                first: b,
+                last: al,
+                limit: lim,
+                trlink: tl,
+            };
             *state.ssize += 1;
             if a - af > 1 {
-                stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+                stack[*state.ssize] = TrFrame {
+                    isad: *state.isad + incr,
+                    first: a,
+                    last: b,
+                    limit: next,
+                    trlink: tl,
+                };
                 *state.ssize += 1;
                 *state.last = a;
             } else {
-                *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+                *state.isad += incr;
+                *state.first = a;
+                *state.last = b;
+                *state.limit = next;
             }
         } else {
-            stack[*state.ssize] = TrFrame { isad: *state.isad, first: b, last: al, limit: lim, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad,
+                first: b,
+                last: al,
+                limit: lim,
+                trlink: tl,
+            };
             *state.ssize += 1;
-            stack[*state.ssize] = TrFrame { isad: *state.isad, first: af, last: a, limit: lim, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad,
+                first: af,
+                last: a,
+                limit: lim,
+                trlink: tl,
+            };
             *state.ssize += 1;
-            *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+            *state.isad += incr;
+            *state.first = a;
+            *state.last = b;
+            *state.limit = next;
         }
     } else if a - af <= b - a {
         if al - b > 1 {
-            stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad + incr,
+                first: a,
+                last: b,
+                limit: next,
+                trlink: tl,
+            };
             *state.ssize += 1;
-            stack[*state.ssize] = TrFrame { isad: *state.isad, first: af, last: a, limit: lim, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad,
+                first: af,
+                last: a,
+                limit: lim,
+                trlink: tl,
+            };
             *state.ssize += 1;
             *state.first = b;
         } else if a - af > 1 {
-            stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad + incr,
+                first: a,
+                last: b,
+                limit: next,
+                trlink: tl,
+            };
             *state.ssize += 1;
             *state.last = a;
         } else {
-            *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+            *state.isad += incr;
+            *state.first = a;
+            *state.last = b;
+            *state.limit = next;
         }
     } else if al - b <= b - a {
-        stack[*state.ssize] = TrFrame { isad: *state.isad, first: af, last: a, limit: lim, trlink: tl };
+        stack[*state.ssize] = TrFrame {
+            isad: *state.isad,
+            first: af,
+            last: a,
+            limit: lim,
+            trlink: tl,
+        };
         *state.ssize += 1;
         if al - b > 1 {
-            stack[*state.ssize] = TrFrame { isad: *state.isad + incr, first: a, last: b, limit: next, trlink: tl };
+            stack[*state.ssize] = TrFrame {
+                isad: *state.isad + incr,
+                first: a,
+                last: b,
+                limit: next,
+                trlink: tl,
+            };
             *state.ssize += 1;
             *state.first = b;
         } else {
-            *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+            *state.isad += incr;
+            *state.first = a;
+            *state.last = b;
+            *state.limit = next;
         }
     } else {
-        stack[*state.ssize] = TrFrame { isad: *state.isad, first: af, last: a, limit: lim, trlink: tl };
+        stack[*state.ssize] = TrFrame {
+            isad: *state.isad,
+            first: af,
+            last: a,
+            limit: lim,
+            trlink: tl,
+        };
         *state.ssize += 1;
-        stack[*state.ssize] = TrFrame { isad: *state.isad, first: b, last: al, limit: lim, trlink: tl };
+        stack[*state.ssize] = TrFrame {
+            isad: *state.isad,
+            first: b,
+            last: al,
+            limit: lim,
+            trlink: tl,
+        };
         *state.ssize += 1;
-        *state.isad += incr; *state.first = a; *state.last = b; *state.limit = next;
+        *state.isad += incr;
+        *state.first = a;
+        *state.last = b;
+        *state.limit = next;
     }
 }
 
@@ -875,12 +1136,16 @@ pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: i32) {
                 }
                 first = last;
             }
-            if first >= n { break; }
+            if first >= n {
+                break;
+            }
         }
         if skip != 0 {
             sa[(first as i32 + skip) as usize] = skip;
         }
-        if unsorted == 0 { break; }
+        if unsorted == 0 {
+            break;
+        }
         isad += isad; // ISAd += ISAd - ISA → new_isad = isad + isad = 2*isad (since ISA=0)
     }
 }
