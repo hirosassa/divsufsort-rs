@@ -1,3 +1,9 @@
+//! Main suffix array and Burrows-Wheeler transform construction.
+//!
+//! Orchestrates the induced-sorting strategy:
+//! 1. `sort_typebstar` — classify, sort B*-suffixes (parallel sssort + trsort), scatter back
+//! 2. `construct_sa` / `construct_bwt` — induce the full SA or BWT from sorted B*-suffixes
+
 use crate::DivSufSortError;
 use crate::constants::{ALPHABET_SIZE, BUCKET_A_SIZE, BUCKET_B_SIZE};
 use crate::sssort::{SsortCtx, sssort};
@@ -204,6 +210,11 @@ fn place_sorted_bstar_in_buckets(
     }
 }
 
+/// Sorts B*-type suffixes using the induced-sorting framework.
+///
+/// Phases: classify suffixes → compute bucket boundaries → distribute B*-suffixes →
+/// parallel sssort → build ISA → trsort equal groups → scatter back to final positions.
+/// Returns the number of B*-suffixes found.
 fn sort_typebstar(
     t: &[u8],
     sa: &mut [i32],
@@ -326,6 +337,8 @@ fn sort_typebstar(
     m
 }
 
+/// Induces the full suffix array from the sorted B*-suffixes by scanning
+/// bucket boundaries left-to-right (A-type) and right-to-left (B-type).
 fn construct_sa(
     t: &[u8],
     sa: &mut [i32],
@@ -403,6 +416,8 @@ fn construct_sa(
     }
 }
 
+/// Induces the Burrows-Wheeler transform from the sorted B*-suffixes,
+/// similar to `construct_sa` but outputs BWT characters instead of suffix positions.
 fn construct_bwt(
     t: &[u8],
     sa: &mut [i32],

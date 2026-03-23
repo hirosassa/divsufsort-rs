@@ -1,6 +1,13 @@
+//! Tandem repeat sort (trsort): sorts equal-group suffixes left by the B*-suffix sort.
+//!
+//! When multiple suffixes share the same initial key, trsort resolves their
+//! relative order by comparing at increasing depths (doubling the ISA offset).
+//! Uses introspective sort with budget-based recursion control to avoid O(n²) worst case.
+
 use crate::constants::{Depth, FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
 
 #[inline(always)]
+/// Integer log2 for 32-bit values, using the lookup table.
 fn tr_ilg(n: i32) -> i32 {
     if n & 0xffff0000u32 as i32 != 0 {
         if n & 0xff000000u32 as i32 != 0 {
@@ -15,6 +22,7 @@ fn tr_ilg(n: i32) -> i32 {
     }
 }
 
+/// Insertion sort for small ranges, skipping negative group markers during shifts.
 fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
     // C: for(a = first + 1; a < last; ++a) {
     //      for(t = *a, b = a - 1; 0 > (r = ISAd[t] - ISAd[*b]);) {
@@ -87,6 +95,7 @@ fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, size: us
     sa[i] = v;
 }
 
+/// Heapsort fallback for `tr_introsort` when the recursion limit is exhausted.
 fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
     let mut m = size;
     if size.is_multiple_of(2) {
@@ -168,6 +177,7 @@ fn tr_median5_idx(
     }
 }
 
+/// Selects a pivot index using median-of-3 or median-of-5 depending on range size.
 fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> usize {
     let t = (last - first) as i32;
     let middle = first + (t / 2) as usize;
@@ -187,6 +197,8 @@ fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> usize {
     }
 }
 
+/// Budget-based recursion control for `tr_introsort`.
+/// Limits the total work to prevent O(n²) worst case on degenerate inputs.
 struct TrBudget {
     chance: i32,
     remain: i32,
@@ -353,6 +365,8 @@ fn tr_partition(
     (first, last)
 }
 
+/// Copies sorted suffix positions from sa[a..b) back into the full range sa[first..last),
+/// updating ISA group labels.
 fn tr_copy(
     isa: &mut [i32],
     sa: &mut [i32],
@@ -401,6 +415,8 @@ fn tr_copy(
     }
 }
 
+/// Partial copy variant of `tr_copy`, used when budget is exhausted (trlink == -1).
+/// Creates new equal-group runs where exact ordering could not be determined.
 fn tr_partialcopy(
     isa: &mut [i32],
     sa: &mut [i32],
@@ -696,6 +712,15 @@ const fn tr_pop_stack(
     }
 }
 
+/// Main introspective sort engine for tandem repeat sorting.
+///
+/// Uses quicksort with partition, falling back to heapsort when the recursion
+/// limit is exhausted. Budget control prevents O(n²) worst case.
+/// The `limit` state variable encodes the current phase:
+///   - `limit >= 0`: normal introsort with remaining recursion budget
+///   - `limit == -1`: tandem repeat partition phase
+///   - `limit == -2`: copy/partial-copy phase
+///   - `limit < -2`: negate/scan/budget-check phase
 fn tr_introsort(
     isa: &mut [i32],
     isad_init: usize,
@@ -1077,6 +1102,10 @@ const fn push5_and_continue(
     }
 }
 
+/// Sorts equal-group suffixes left by the B*-suffix sort using tandem repeat sorting.
+///
+/// `isa` and `sa` are the two halves of the working buffer (split at position m).
+/// Called from `sort_typebstar` after sssort completes.
 pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: Depth) {
     let n = n as usize;
     let mut budget = TrBudget::new(tr_ilg(n as i32) * 2 / 3, n as i32);
