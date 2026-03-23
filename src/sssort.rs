@@ -1,5 +1,6 @@
 use crate::constants::{
-    LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE, SS_SMERGE_STACKSIZE,
+    FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
+    SS_SMERGE_STACKSIZE,
 };
 
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
@@ -347,7 +348,7 @@ fn ss_partition(
     a
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct MiSortFrame {
     first: usize,
     last: usize,
@@ -526,13 +527,7 @@ fn ss_mintrosort(
     last: usize,
     depth: i32,
 ) {
-    let mut stack = [MiSortFrame {
-        first: 0,
-        last: 0,
-        depth: 0,
-        limit: 0,
-    }; SS_MISORT_STACKSIZE];
-    let mut ssize = 0usize;
+    let mut stack = FixedStack::<MiSortFrame, { SS_MISORT_STACKSIZE }>::new();
     let pa_slice = &pa[pab..]; // for insertionsort (uses non-negative PAb indices)
 
     let mut first = first;
@@ -545,27 +540,23 @@ fn ss_mintrosort(
             if last - first > 1 {
                 ss_insertionsort_impl(t, pa_slice, sa, first, last, depth);
             }
-            // STACK_POP
-            if ssize == 0 {
+            if let Some(f) = stack.pop() {
+                first = f.first;
+                last = f.last;
+                depth = f.depth;
+                limit = f.limit;
+            } else {
                 return;
             }
-            ssize -= 1;
-            let f = stack[ssize];
-            first = f.first;
-            last = f.last;
-            depth = f.depth;
-            limit = f.limit;
             continue;
         }
 
         let td_offset = depth as usize;
         limit -= 1;
         if limit == -1 {
-            // limit was 0 → heapsort
             ss_heapsort(&t[td_offset..], pa, pab, sa, first, last - first);
         }
         if limit < 0 {
-            // after heapsort: scan and partition
             let mut a = first + 1;
             let mut v = t[td_offset + pa_val(pa, pab, sa[first]) as usize] as i32;
             while a < last {
@@ -585,13 +576,12 @@ fn ss_mintrosort(
             }
             if a - first <= last - a {
                 if a - first > 1 {
-                    stack[ssize] = MiSortFrame {
+                    stack.push(MiSortFrame {
                         first: a,
                         last,
                         depth,
                         limit: -1,
-                    };
-                    ssize += 1;
+                    });
                     last = a;
                     depth += 1;
                     limit = ss_ilg((a - first) as i32);
@@ -600,13 +590,12 @@ fn ss_mintrosort(
                     limit = -1;
                 }
             } else if last - a > 1 {
-                stack[ssize] = MiSortFrame {
+                stack.push(MiSortFrame {
                     first,
                     last: a,
                     depth: depth + 1,
                     limit: ss_ilg((a - first) as i32),
-                };
-                ssize += 1;
+                });
                 first = a;
                 limit = -1;
             } else {
@@ -628,111 +617,98 @@ fn ss_mintrosort(
             // in size order (smallest processed next via loop vars, larger two on stack).
             if new_a - first <= last - new_c {
                 if last - new_c <= new_c - b2 {
-                    stack[ssize] = MiSortFrame {
+                    stack.push(MiSortFrame {
                         first: b2,
                         last: new_c,
                         depth: depth + 1,
                         limit: ss_ilg((new_c - b2) as i32),
-                    };
-                    ssize += 1;
-                    stack[ssize] = MiSortFrame {
+                    });
+                    stack.push(MiSortFrame {
                         first: new_c,
                         last,
                         depth,
                         limit,
-                    };
-                    ssize += 1;
+                    });
                     last = new_a;
                 } else if new_a - first <= new_c - b2 {
-                    stack[ssize] = MiSortFrame {
+                    stack.push(MiSortFrame {
                         first: new_c,
                         last,
                         depth,
                         limit,
-                    };
-                    ssize += 1;
-                    stack[ssize] = MiSortFrame {
+                    });
+                    stack.push(MiSortFrame {
                         first: b2,
                         last: new_c,
                         depth: depth + 1,
                         limit: ss_ilg((new_c - b2) as i32),
-                    };
-                    ssize += 1;
+                    });
                     last = new_a;
                 } else {
-                    stack[ssize] = MiSortFrame {
+                    stack.push(MiSortFrame {
                         first: new_c,
                         last,
                         depth,
                         limit,
-                    };
-                    ssize += 1;
-                    stack[ssize] = MiSortFrame {
+                    });
+                    stack.push(MiSortFrame {
                         first,
                         last: new_a,
                         depth,
                         limit,
-                    };
-                    ssize += 1;
+                    });
                     first = b2;
                     last = new_c;
                     depth += 1;
                     limit = ss_ilg((new_c - b2) as i32);
                 }
             } else if new_a - first <= new_c - b2 {
-                stack[ssize] = MiSortFrame {
+                stack.push(MiSortFrame {
                     first: b2,
                     last: new_c,
                     depth: depth + 1,
                     limit: ss_ilg((new_c - b2) as i32),
-                };
-                ssize += 1;
-                stack[ssize] = MiSortFrame {
+                });
+                stack.push(MiSortFrame {
                     first,
                     last: new_a,
                     depth,
                     limit,
-                };
-                ssize += 1;
+                });
                 first = new_c;
             } else if last - new_c <= new_c - b2 {
-                stack[ssize] = MiSortFrame {
+                stack.push(MiSortFrame {
                     first,
                     last: new_a,
                     depth,
                     limit,
-                };
-                ssize += 1;
-                stack[ssize] = MiSortFrame {
+                });
+                stack.push(MiSortFrame {
                     first: b2,
                     last: new_c,
                     depth: depth + 1,
                     limit: ss_ilg((new_c - b2) as i32),
-                };
-                ssize += 1;
+                });
                 first = new_c;
             } else {
-                stack[ssize] = MiSortFrame {
+                stack.push(MiSortFrame {
                     first,
                     last: new_a,
                     depth,
                     limit,
-                };
-                ssize += 1;
-                stack[ssize] = MiSortFrame {
+                });
+                stack.push(MiSortFrame {
                     first: new_c,
                     last,
                     depth,
                     limit,
-                };
-                ssize += 1;
+                });
                 first = b2;
                 last = new_c;
                 depth += 1;
                 limit = ss_ilg((new_c - b2) as i32);
             }
         } else {
-            // Degenerate partition: no equal elements spanning both sides
             limit += 1;
             let check_idx_el = td_offset as i64 + pa_val(pa, pab, sa[first]) as i64 - 1;
             if (t[check_idx_el as usize] as i32) < v {
@@ -1110,7 +1086,7 @@ fn ss_mergebackward(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct SmergeFrame {
     first: usize,
     middle: usize,
@@ -1127,13 +1103,7 @@ fn ss_swapmerge(
     depth: i32,
 ) {
     let BufInfo { buf, bufsize } = buf_info;
-    let mut stack = [SmergeFrame {
-        first: 0,
-        middle: 0,
-        last: 0,
-        check: 0,
-    }; SS_SMERGE_STACKSIZE];
-    let mut ssize = 0usize;
+    let mut stack = FixedStack::<SmergeFrame, { SS_SMERGE_STACKSIZE }>::new();
 
     let mut first = range.first;
     let mut middle = range.middle;
@@ -1159,15 +1129,14 @@ fn ss_swapmerge(
             // MERGE_CHECK
             merge_check(t, pa, sa, first, last, check, depth);
             // STACK_POP
-            if ssize == 0 {
+            if let Some(f) = stack.pop() {
+                first = f.first;
+                middle = f.middle;
+                last = f.last;
+                check = f.check;
+            } else {
                 return;
             }
-            ssize -= 1;
-            let f = stack[ssize];
-            first = f.first;
-            middle = f.middle;
-            last = f.last;
-            check = f.check;
             continue;
         }
 
@@ -1187,15 +1156,14 @@ fn ss_swapmerge(
                 );
             }
             merge_check(t, pa, sa, first, last, check, depth);
-            if ssize == 0 {
+            if let Some(f) = stack.pop() {
+                first = f.first;
+                middle = f.middle;
+                last = f.last;
+                check = f.check;
+            } else {
                 return;
             }
-            ssize -= 1;
-            let f = stack[ssize];
-            first = f.first;
-            middle = f.middle;
-            last = f.last;
-            check = f.check;
             continue;
         }
 
@@ -1262,13 +1230,12 @@ fn ss_swapmerge(
             }
 
             if l - first <= last - r {
-                stack[ssize] = SmergeFrame {
+                stack.push(SmergeFrame {
                     first: r,
                     middle: rm,
                     last,
                     check: (next & 3) | (check & 4),
-                };
-                ssize += 1;
+                });
                 middle = lm;
                 last = l;
                 check = (check & 3) | (next & 4);
@@ -1276,13 +1243,12 @@ fn ss_swapmerge(
                 if (next & 2) != 0 && r == middle {
                     next ^= 6;
                 }
-                stack[ssize] = SmergeFrame {
+                stack.push(SmergeFrame {
                     first,
                     middle: lm,
                     last: l,
                     check: (check & 3) | (next & 4),
-                };
-                ssize += 1;
+                });
                 first = r;
                 middle = rm;
                 check = (next & 3) | (check & 4);
@@ -1300,15 +1266,14 @@ fn ss_swapmerge(
                 sa[middle] = !sa[middle];
             }
             merge_check(t, pa, sa, first, last, check, depth);
-            if ssize == 0 {
+            if let Some(f) = stack.pop() {
+                first = f.first;
+                middle = f.middle;
+                last = f.last;
+                check = f.check;
+            } else {
                 return;
             }
-            ssize -= 1;
-            let f = stack[ssize];
-            first = f.first;
-            middle = f.middle;
-            last = f.last;
-            check = f.check;
         }
     }
 }

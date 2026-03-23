@@ -1,4 +1,4 @@
-use crate::constants::{LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
+use crate::constants::{FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
 
 #[inline(always)]
 fn tr_ilg(n: i32) -> i32 {
@@ -476,9 +476,9 @@ fn tr_partialcopy(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct TrFrame {
-    isad: usize, // ISAd offset (index within the ISA array)
+    isad: usize,
     first: usize,
     last: usize,
     limit: i32,
@@ -486,7 +486,6 @@ struct TrFrame {
 }
 
 struct TrSortState<'a> {
-    ssize: &'a mut usize,
     isad: &'a mut usize,
     first: &'a mut usize,
     last: &'a mut usize,
@@ -500,7 +499,7 @@ struct TrSortState<'a> {
 fn tr_handle_tandem_partition(
     isa: &mut [i32],
     sa: &mut [i32],
-    stack: &mut [TrFrame],
+    stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
     state: &mut TrSortState<'_>,
     incr: usize,
 ) -> bool {
@@ -533,34 +532,31 @@ fn tr_handle_tandem_partition(
     }
 
     if b - a > 1 {
-        stack[*state.ssize] = TrFrame {
+        stack.push(TrFrame {
             isad: 0,
             first: a,
             last: b,
             limit: 0,
             trlink: 0,
-        };
-        *state.ssize += 1;
-        stack[*state.ssize] = TrFrame {
+        });
+        stack.push(TrFrame {
             isad: *state.isad - incr,
             first: *state.first,
             last: *state.last,
             limit: -2,
             trlink: *state.trlink,
-        };
-        *state.ssize += 1;
-        *state.trlink = (*state.ssize as i32) - 2;
+        });
+        *state.trlink = (stack.len() as i32) - 2;
     }
     if a - *state.first <= *state.last - b {
         if a - *state.first > 1 {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad,
                 first: b,
                 last: *state.last,
                 limit: tr_ilg((*state.last - b) as i32),
                 trlink: *state.trlink,
-            };
-            *state.ssize += 1;
+            });
             *state.last = a;
             *state.limit = tr_ilg((a - *state.first) as i32);
         } else if *state.last - b > 1 {
@@ -570,14 +566,13 @@ fn tr_handle_tandem_partition(
             return tr_pop_stack(stack, state);
         }
     } else if *state.last - b > 1 {
-        stack[*state.ssize] = TrFrame {
+        stack.push(TrFrame {
             isad: *state.isad,
             first: *state.first,
             last: a,
             limit: tr_ilg((a - *state.first) as i32),
             trlink: *state.trlink,
-        };
-        *state.ssize += 1;
+        });
         *state.first = b;
         *state.limit = tr_ilg((*state.last - b) as i32);
     } else if a - *state.first > 1 {
@@ -595,7 +590,7 @@ fn tr_handle_tandem_partition(
 fn tr_handle_negate_scan(
     isa: &mut [i32],
     sa: &mut [i32],
-    stack: &mut [TrFrame],
+    stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
     state: &mut TrSortState<'_>,
     incr: usize,
     budget: &mut TrBudget,
@@ -644,26 +639,24 @@ fn tr_handle_negate_scan(
 
     if budget.check((run_end - first) as i32) {
         if run_end - first <= last - run_end {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad,
                 first: run_end,
                 last,
                 limit: -3,
                 trlink: *state.trlink,
-            };
-            *state.ssize += 1;
+            });
             *state.isad += incr;
             *state.last = run_end;
             *state.limit = next;
         } else if last - run_end > 1 {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: isad + incr,
                 first,
                 last: run_end,
                 limit: next,
                 trlink: *state.trlink,
-            };
-            *state.ssize += 1;
+            });
             *state.first = run_end;
             *state.limit = -3;
         } else {
@@ -687,18 +680,20 @@ fn tr_handle_negate_scan(
 
 /// Pops a frame from the stack into the state. Returns `false` if stack is empty.
 #[inline(always)]
-fn tr_pop_stack(stack: &[TrFrame], state: &mut TrSortState<'_>) -> bool {
-    if *state.ssize == 0 {
-        return false;
+const fn tr_pop_stack(
+    stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
+    state: &mut TrSortState<'_>,
+) -> bool {
+    if let Some(f) = stack.pop() {
+        *state.isad = f.isad;
+        *state.first = f.first;
+        *state.last = f.last;
+        *state.limit = f.limit;
+        *state.trlink = f.trlink;
+        true
+    } else {
+        false
     }
-    *state.ssize -= 1;
-    let f = stack[*state.ssize];
-    *state.isad = f.isad;
-    *state.first = f.first;
-    *state.last = f.last;
-    *state.limit = f.limit;
-    *state.trlink = f.trlink;
-    true
 }
 
 fn tr_introsort(
@@ -710,14 +705,7 @@ fn tr_introsort(
     budget: &mut TrBudget,
 ) {
     let incr = isad_init; // ISAd - ISA = isad_init (ISA is 0-based)
-    let mut stack = [TrFrame {
-        isad: 0,
-        first: 0,
-        last: 0,
-        limit: 0,
-        trlink: 0,
-    }; TR_STACKSIZE];
-    let mut ssize: usize = 0;
+    let mut stack = FixedStack::<TrFrame, { TR_STACKSIZE }>::new();
 
     let mut isad = isad_init;
     let mut first = sa_first;
@@ -729,7 +717,6 @@ fn tr_introsort(
         if limit < 0 {
             if limit == -1 {
                 let mut state = TrSortState {
-                    ssize: &mut ssize,
                     isad: &mut isad,
                     first: &mut first,
                     last: &mut last,
@@ -740,10 +727,10 @@ fn tr_introsort(
                     return;
                 }
             } else if limit == -2 {
-                ssize -= 1;
-                let a = stack[ssize].first;
-                let b = stack[ssize].last;
-                let d_flag = stack[ssize].limit;
+                let popped = stack.pop().unwrap();
+                let a = popped.first;
+                let b = popped.last;
+                let d_flag = popped.limit;
                 if d_flag == 0 {
                     tr_copy(isa, sa, first, a, b, last, isad as i32);
                 } else {
@@ -752,19 +739,17 @@ fn tr_introsort(
                     }
                     tr_partialcopy(isa, sa, first, a, b, last, isad as i32);
                 }
-                if ssize == 0 {
+                if let Some(f) = stack.pop() {
+                    isad = f.isad;
+                    first = f.first;
+                    last = f.last;
+                    limit = f.limit;
+                    trlink = f.trlink;
+                } else {
                     return;
                 }
-                ssize -= 1;
-                let f = stack[ssize];
-                isad = f.isad;
-                first = f.first;
-                last = f.last;
-                limit = f.limit;
-                trlink = f.trlink;
             } else {
                 let mut state = TrSortState {
-                    ssize: &mut ssize,
                     isad: &mut isad,
                     first: &mut first,
                     last: &mut last,
@@ -842,7 +827,6 @@ fn tr_introsort(
 
             if b - a > 1 && budget.check((b - a) as i32) {
                 let mut state = TrSortState {
-                    ssize: &mut ssize,
                     isad: &mut isad,
                     first: &mut first,
                     last: &mut last,
@@ -856,52 +840,44 @@ fn tr_introsort(
                 }
                 if a - first <= last - b {
                     if a - first > 1 {
-                        stack[ssize] = TrFrame {
+                        stack.push(TrFrame {
                             isad,
                             first: b,
                             last,
                             limit,
                             trlink,
-                        };
-                        ssize += 1;
+                        });
                         last = a;
                     } else if last - b > 1 {
                         first = b;
-                    } else {
-                        if ssize == 0 {
-                            return;
-                        }
-                        ssize -= 1;
-                        let f = stack[ssize];
+                    } else if let Some(f) = stack.pop() {
                         isad = f.isad;
                         first = f.first;
                         last = f.last;
                         limit = f.limit;
                         trlink = f.trlink;
+                    } else {
+                        return;
                     }
                 } else if last - b > 1 {
-                    stack[ssize] = TrFrame {
+                    stack.push(TrFrame {
                         isad,
                         first,
                         last: a,
                         limit,
                         trlink,
-                    };
-                    ssize += 1;
+                    });
                     first = b;
                 } else if a - first > 1 {
                     last = a;
-                } else {
-                    if ssize == 0 {
-                        return;
-                    }
-                    ssize -= 1;
-                    let f = stack[ssize];
+                } else if let Some(f) = stack.pop() {
                     isad = f.isad;
                     first = f.first;
                     last = f.last;
                     limit = f.limit;
                     trlink = f.trlink;
+                } else {
+                    return;
                 }
             }
         } else if budget.check((last - first) as i32) {
@@ -911,16 +887,15 @@ fn tr_introsort(
             if trlink >= 0 {
                 stack[trlink as usize].limit = -1;
             }
-            if ssize == 0 {
+            if let Some(f) = stack.pop() {
+                isad = f.isad;
+                first = f.first;
+                last = f.last;
+                limit = f.limit;
+                trlink = f.trlink;
+            } else {
                 return;
             }
-            ssize -= 1;
-            let f = stack[ssize];
-            isad = f.isad;
-            first = f.first;
-            last = f.last;
-            limit = f.limit;
-            trlink = f.trlink;
         }
     }
 }
@@ -936,8 +911,8 @@ fn tr_partition_owned(
     tr_partition(isad, sa, first, middle, last, v)
 }
 
-fn push5_and_continue(
-    stack: &mut [TrFrame],
+const fn push5_and_continue(
+    stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
     state: &mut TrSortState<'_>,
     incr: usize,
     a: usize,
@@ -952,32 +927,29 @@ fn push5_and_continue(
     if a - af <= al - b {
         if al - b <= b - a {
             if a - af > 1 {
-                stack[*state.ssize] = TrFrame {
+                stack.push(TrFrame {
                     isad: *state.isad + incr,
                     first: a,
                     last: b,
                     limit: next,
                     trlink: tl,
-                };
-                *state.ssize += 1;
-                stack[*state.ssize] = TrFrame {
+                });
+                stack.push(TrFrame {
                     isad: *state.isad,
                     first: b,
                     last: al,
                     limit: lim,
                     trlink: tl,
-                };
-                *state.ssize += 1;
+                });
                 *state.last = a;
             } else if al - b > 1 {
-                stack[*state.ssize] = TrFrame {
+                stack.push(TrFrame {
                     isad: *state.isad + incr,
                     first: a,
                     last: b,
                     limit: next,
                     trlink: tl,
-                };
-                *state.ssize += 1;
+                });
                 *state.first = b;
             } else {
                 *state.isad += incr;
@@ -986,23 +958,21 @@ fn push5_and_continue(
                 *state.limit = next;
             }
         } else if a - af <= b - a {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad,
                 first: b,
                 last: al,
                 limit: lim,
                 trlink: tl,
-            };
-            *state.ssize += 1;
+            });
             if a - af > 1 {
-                stack[*state.ssize] = TrFrame {
+                stack.push(TrFrame {
                     isad: *state.isad + incr,
                     first: a,
                     last: b,
                     limit: next,
                     trlink: tl,
-                };
-                *state.ssize += 1;
+                });
                 *state.last = a;
             } else {
                 *state.isad += incr;
@@ -1011,22 +981,20 @@ fn push5_and_continue(
                 *state.limit = next;
             }
         } else {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad,
                 first: b,
                 last: al,
                 limit: lim,
                 trlink: tl,
-            };
-            *state.ssize += 1;
-            stack[*state.ssize] = TrFrame {
+            });
+            stack.push(TrFrame {
                 isad: *state.isad,
                 first: af,
                 last: a,
                 limit: lim,
                 trlink: tl,
-            };
-            *state.ssize += 1;
+            });
             *state.isad += incr;
             *state.first = a;
             *state.last = b;
@@ -1034,32 +1002,29 @@ fn push5_and_continue(
         }
     } else if a - af <= b - a {
         if al - b > 1 {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad + incr,
                 first: a,
                 last: b,
                 limit: next,
                 trlink: tl,
-            };
-            *state.ssize += 1;
-            stack[*state.ssize] = TrFrame {
+            });
+            stack.push(TrFrame {
                 isad: *state.isad,
                 first: af,
                 last: a,
                 limit: lim,
                 trlink: tl,
-            };
-            *state.ssize += 1;
+            });
             *state.first = b;
         } else if a - af > 1 {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad + incr,
                 first: a,
                 last: b,
                 limit: next,
                 trlink: tl,
-            };
-            *state.ssize += 1;
+            });
             *state.last = a;
         } else {
             *state.isad += incr;
@@ -1068,23 +1033,21 @@ fn push5_and_continue(
             *state.limit = next;
         }
     } else if al - b <= b - a {
-        stack[*state.ssize] = TrFrame {
+        stack.push(TrFrame {
             isad: *state.isad,
             first: af,
             last: a,
             limit: lim,
             trlink: tl,
-        };
-        *state.ssize += 1;
+        });
         if al - b > 1 {
-            stack[*state.ssize] = TrFrame {
+            stack.push(TrFrame {
                 isad: *state.isad + incr,
                 first: a,
                 last: b,
                 limit: next,
                 trlink: tl,
-            };
-            *state.ssize += 1;
+            });
             *state.first = b;
         } else {
             *state.isad += incr;
@@ -1093,22 +1056,20 @@ fn push5_and_continue(
             *state.limit = next;
         }
     } else {
-        stack[*state.ssize] = TrFrame {
+        stack.push(TrFrame {
             isad: *state.isad,
             first: af,
             last: a,
             limit: lim,
             trlink: tl,
-        };
-        *state.ssize += 1;
-        stack[*state.ssize] = TrFrame {
+        });
+        stack.push(TrFrame {
             isad: *state.isad,
             first: b,
             last: al,
             limit: lim,
             trlink: tl,
-        };
-        *state.ssize += 1;
+        });
         *state.isad += incr;
         *state.first = a;
         *state.last = b;
