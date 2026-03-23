@@ -1,6 +1,5 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use divsufsort_rs::divsufsort;
-use pprof::criterion::{Output, PProfProfiler};
 
 fn lcg_next(seed: &mut u64) -> u8 {
     *seed = seed
@@ -62,9 +61,5 @@ fn bench_divsufsort_light(c: &mut Criterion) {
     }
 }
 
-criterion_group! {
-    name = benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(1000, Output::Flamegraph(None)));
-    targets = bench_divsufsort_light
-}
+criterion_group!(benches, bench_divsufsort_light);
 criterion_main!(benches);
