@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use divsufsort_rs::divsufsort;
 
 // Simple LCG for deterministic pseudo-random generation without external deps.
@@ -56,10 +56,10 @@ fn bench_divsufsort(c: &mut Criterion) {
 
     let corpora: &[(&str, fn(usize) -> Vec<u8>)] = &[
         ("random_binary", corpus_random_binary),
-        ("text_26",       corpus_text),
-        ("repetitive",    corpus_repetitive),
-        ("dna",           corpus_dna),
-        ("fibonacci",     corpus_fibonacci),
+        ("text_26", corpus_text),
+        ("repetitive", corpus_repetitive),
+        ("dna", corpus_dna),
+        ("fibonacci", corpus_fibonacci),
     ];
 
     for &(name, func) in corpora {
@@ -69,16 +69,12 @@ fn bench_divsufsort(c: &mut Criterion) {
         for &size in SIZES {
             let data = func(size);
             group.throughput(Throughput::Bytes(size as u64));
-            group.bench_with_input(
-                BenchmarkId::from_parameter(size),
-                &data,
-                |b, data| {
-                    b.iter(|| {
-                        let mut sa = vec![0i32; data.len()];
-                        divsufsort(data, &mut sa).unwrap();
-                    })
-                },
-            );
+            group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
+                b.iter(|| {
+                    let mut sa = vec![0i32; data.len()];
+                    divsufsort(data, &mut sa).unwrap();
+                })
+            });
         }
 
         group.finish();

@@ -1,26 +1,37 @@
 use crate::DivSufSortError;
 use crate::constants::{ALPHABET_SIZE, BUCKET_A_SIZE, BUCKET_B_SIZE};
-use crate::sssort::{sssort, SsortCtx};
+use crate::sssort::{SsortCtx, sssort};
 use crate::trsort::trsort;
 use rayon::prelude::*;
 
-
 #[inline(always)]
-fn bucket_a(ba: &[i32], c0: usize) -> i32 { ba[c0] }
+fn bucket_a(ba: &[i32], c0: usize) -> i32 {
+    ba[c0]
+}
 #[inline(always)]
-fn bucket_a_mut(ba: &mut [i32], c0: usize) -> &mut i32 { &mut ba[c0] }
+fn bucket_a_mut(ba: &mut [i32], c0: usize) -> &mut i32 {
+    &mut ba[c0]
+}
 
 /// BUCKET_B(c0, c1) = bucket_B[(c1 << 8) | c0]
 #[inline(always)]
-fn bucket_b(bb: &[i32], c0: usize, c1: usize) -> i32 { bb[(c1 << 8) | c0] }
+fn bucket_b(bb: &[i32], c0: usize, c1: usize) -> i32 {
+    bb[(c1 << 8) | c0]
+}
 #[inline(always)]
-fn bucket_b_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 { &mut bb[(c1 << 8) | c0] }
+fn bucket_b_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+    &mut bb[(c1 << 8) | c0]
+}
 
 /// BUCKET_BSTAR(c0, c1) = bucket_B[(c0 << 8) | c1]
 #[inline(always)]
-fn bucket_bstar(bb: &[i32], c0: usize, c1: usize) -> i32 { bb[(c0 << 8) | c1] }
+fn bucket_bstar(bb: &[i32], c0: usize, c1: usize) -> i32 {
+    bb[(c0 << 8) | c1]
+}
 #[inline(always)]
-fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 { &mut bb[(c0 << 8) | c1] }
+fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+    &mut bb[(c0 << 8) | c1]
+}
 
 fn sort_typebstar(
     t: &[u8],
@@ -29,8 +40,12 @@ fn sort_typebstar(
     bkt_b: &mut [i32],
     n: usize,
 ) -> usize {
-    for x in bkt_a.iter_mut() { *x = 0; }
-    for x in bkt_b.iter_mut() { *x = 0; }
+    for x in bkt_a.iter_mut() {
+        *x = 0;
+    }
+    for x in bkt_b.iter_mut() {
+        *x = 0;
+    }
 
     let mut m = n;
     let mut i = n as isize - 1;
@@ -42,9 +57,13 @@ fn sort_typebstar(
             c1 = c0;
             *bucket_a_mut(bkt_a, c1) += 1;
             i -= 1;
-            if i < 0 { break; }
+            if i < 0 {
+                break;
+            }
             c0 = t[i as usize] as usize;
-            if c0 < c1 { break; }
+            if c0 < c1 {
+                break;
+            }
         }
         if 0 <= i {
             *bucket_bstar_mut(bkt_b, c0, c1) += 1;
@@ -54,7 +73,9 @@ fn sort_typebstar(
             c1 = c0;
             while 0 <= i {
                 c0 = t[i as usize] as usize;
-                if c0 > c1 { break; }
+                if c0 > c1 {
+                    break;
+                }
                 *bucket_b_mut(bkt_b, c0, c1) += 1;
                 i -= 1;
                 c1 = c0;
@@ -80,7 +101,7 @@ fn sort_typebstar(
 
     if m > 0 {
         let pab = n - m; // PAb = SA + n - m (offset within SA)
-        let isab = m;    // ISAb = SA + m
+        let isab = m; // ISAb = SA + m
 
         for i in (0..=(m as isize - 2)).rev() {
             let tv = sa[pab + i as usize];
@@ -118,7 +139,9 @@ fn sort_typebstar(
                         jobs.push((i_val, j, lastsuffix));
                     }
                     j = i_val;
-                    if c1 == 0 { break; }
+                    if c1 == 0 {
+                        break;
+                    }
                     c1 -= 1;
                 }
                 c0_iter -= 1;
@@ -147,7 +170,13 @@ fn sort_typebstar(
                 let sa_ptr = sa_addr as *mut i32;
                 let sa_local = unsafe { std::slice::from_raw_parts_mut(sa_ptr, n1) };
                 let pa_local = unsafe { std::slice::from_raw_parts(sa_ptr as *const i32, n1) };
-                let ctx = SsortCtx { t, pa: pa_local, pab, depth: 2, n: n as i32 };
+                let ctx = SsortCtx {
+                    t,
+                    pa: pa_local,
+                    pab,
+                    depth: 2,
+                    n: n as i32,
+                };
                 sssort(&ctx, sa_local, i_val, j_val, 0, 0, lastsuffix);
             });
         }
@@ -160,17 +189,23 @@ fn sort_typebstar(
                     loop {
                         sa[isab + sa[i as usize] as usize] = i as i32;
                         i -= 1;
-                        if i < 0 || sa[i as usize] < 0 { break; }
+                        if i < 0 || sa[i as usize] < 0 {
+                            break;
+                        }
                     }
                     sa[(i + 1) as usize] = (i - j_val) as i32;
-                    if i <= 0 { break; }
+                    if i <= 0 {
+                        break;
+                    }
                 }
                 let j_val = i;
                 loop {
                     sa[i as usize] = !sa[i as usize];
                     sa[isab + sa[i as usize] as usize] = j_val as i32;
                     i -= 1;
-                    if i < 0 || sa[i as usize] >= 0 { break; }
+                    if i < 0 || sa[i as usize] >= 0 {
+                        break;
+                    }
                 }
                 if i >= 0 {
                     sa[isab + sa[i as usize] as usize] = j_val as i32;
@@ -220,7 +255,6 @@ fn sort_typebstar(
                 }
             }
         }
-
 
         // After scatter, SA[0..m] holds the sorted B*-suffix text positions needed by copy.
         // SA[m..n] contains stale data (ISAb, sssort buffer, PAb) no longer needed.
@@ -282,7 +316,11 @@ fn construct_sa(
                     let s = s as usize;
                     sa[j as usize] = !sa[j as usize];
                     let c0 = t[s - 1] as usize;
-                    let s_val = if s > 1 && t[s - 2] as usize > c0 { !((s - 1) as i32) } else { (s - 1) as i32 };
+                    let s_val = if s > 1 && t[s - 2] as usize > c0 {
+                        !((s - 1) as i32)
+                    } else {
+                        (s - 1) as i32
+                    };
                     if c0 != c2 as usize {
                         if c2 >= 0 {
                             *bucket_b_mut(bkt_b, c2 as usize, c1) = k_idx as i32;
@@ -302,7 +340,11 @@ fn construct_sa(
 
     let c2_init = t[n - 1] as usize;
     let mut k_idx = bucket_a(bkt_a, c2_init) as usize;
-    sa[k_idx] = if (t[n - 2] as usize) < c2_init { !((n - 1) as i32) } else { (n - 1) as i32 };
+    sa[k_idx] = if (t[n - 2] as usize) < c2_init {
+        !((n - 1) as i32)
+    } else {
+        (n - 1) as i32
+    };
     k_idx += 1;
     let mut c2 = c2_init as isize;
 
@@ -311,7 +353,11 @@ fn construct_sa(
         if s > 0 {
             let s = s as usize;
             let c0 = t[s - 1] as usize;
-            let s_val = if s == 1 || (t[s - 2] as usize) < c0 { !((s - 1) as i32) } else { (s - 1) as i32 };
+            let s_val = if s == 1 || (t[s - 2] as usize) < c0 {
+                !((s - 1) as i32)
+            } else {
+                (s - 1) as i32
+            };
             if c0 != c2 as usize {
                 *bucket_a_mut(bkt_a, c2 as usize) = k_idx as i32;
                 c2 = c0 as isize;
@@ -348,7 +394,11 @@ fn construct_bwt(
                     let s = s as usize;
                     let c0 = t[s - 1] as usize;
                     sa[j as usize] = !(c0 as i32);
-                    let s_val = if s > 1 && t[s - 2] as usize > c0 { !(s as i32 - 1) } else { s as i32 - 1 };
+                    let s_val = if s > 1 && t[s - 2] as usize > c0 {
+                        !(s as i32 - 1)
+                    } else {
+                        s as i32 - 1
+                    };
                     if c0 != c2 as usize {
                         if c2 >= 0 {
                             *bucket_b_mut(bkt_b, c2 as usize, c1) = k_idx as i32;
@@ -407,9 +457,16 @@ fn construct_bwt(
 
 pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
     let n = t.len();
-    if sa.len() != n { return Err(DivSufSortError::InvalidArgument); }
-    if n == 0 { return Ok(()); }
-    if n == 1 { sa[0] = 0; return Ok(()); }
+    if sa.len() != n {
+        return Err(DivSufSortError::InvalidArgument);
+    }
+    if n == 0 {
+        return Ok(());
+    }
+    if n == 1 {
+        sa[0] = 0;
+        return Ok(());
+    }
     if n == 2 {
         let m = (t[0] < t[1]) as usize;
         sa[m ^ 1] = 0;
@@ -434,8 +491,13 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
 
 pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivSufSortError> {
     let n = t.len();
-    if n == 0 { return Ok(0); }
-    if n == 1 { u[0] = t[0]; return Ok(1); }
+    if n == 0 {
+        return Ok(0);
+    }
+    if n == 1 {
+        u[0] = t[0];
+        return Ok(1);
+    }
 
     let mut bkt_a = vec![0i32; BUCKET_A_SIZE];
     let mut bkt_b = vec![0i32; BUCKET_B_SIZE];
@@ -445,18 +507,24 @@ pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivS
     // used as scratch space to avoid this allocation, but it could only hold n elements,
     // one short of the n+1 needed.
     if let Some(b_arr) = &a
-        && b_arr.len() < n { return Err(DivSufSortError::InvalidArgument); }
+        && b_arr.len() < n
+    {
+        return Err(DivSufSortError::InvalidArgument);
+    }
     let mut b_arr = vec![0i32; n + 1];
     let m = sort_typebstar(t, &mut b_arr, &mut bkt_a, &mut bkt_b, n);
     let pidx = construct_bwt(t, &mut b_arr, &mut bkt_a, &mut bkt_b, n, m);
     u[0] = t[n - 1];
-    for i in 0..pidx { u[i + 1] = b_arr[i] as u8; }
-    for i in (pidx + 1)..n { u[i] = b_arr[i] as u8; }
+    for i in 0..pidx {
+        u[i + 1] = b_arr[i] as u8;
+    }
+    for i in (pidx + 1)..n {
+        u[i] = b_arr[i] as u8;
+    }
     let pidx = pidx + 1;
 
     Ok(pidx as i32)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -562,5 +630,4 @@ mod tests {
         inverse_bw_transform(&bwt, &mut restored, None, pidx).unwrap();
         assert_eq!(restored, t.to_vec());
     }
-
 }

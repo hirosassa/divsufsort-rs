@@ -8,7 +8,7 @@ mod utils;
 
 pub use divsufsort::{divbwt, divsufsort};
 pub use utils::{
-    bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck, SufCheckError,
+    SufCheckError, bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck,
 };
 
 #[derive(Debug, PartialEq, Eq)]

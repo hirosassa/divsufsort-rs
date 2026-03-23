@@ -1,4 +1,6 @@
-use crate::constants::{SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE, SS_SMERGE_STACKSIZE};
+use crate::constants::{
+    SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE, SS_SMERGE_STACKSIZE,
+};
 
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
 /// In C: `PA[idx]` = `SA[pab + idx]`, even when idx is negative (equal-group markers).
@@ -20,32 +22,32 @@ fn pa_val(pa: &[i32], pab: usize, idx: i32) -> i32 {
 }
 
 static LG_TABLE: [i32; 256] = [
-    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+    6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    7,
 ];
 
 static SQQ_TABLE: [i32; 256] = [
-    0, 16, 22, 27, 32, 35, 39, 42, 45, 48, 50, 53, 55, 57, 59, 61, 64, 65, 67, 69, 71, 73, 75,
-    76, 78, 80, 81, 83, 84, 86, 87, 89, 90, 91, 93, 94, 96, 97, 98, 99, 101, 102, 103, 104, 106,
-    107, 108, 109, 110, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126,
-    128, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 144,
-    145, 146, 147, 148, 149, 150, 150, 151, 152, 153, 154, 155, 155, 156, 157, 158, 159, 160, 160,
-    161, 162, 163, 163, 164, 165, 166, 167, 167, 168, 169, 170, 170, 171, 172, 173, 173, 174, 175,
-    176, 176, 177, 178, 178, 179, 180, 181, 181, 182, 183, 183, 184, 185, 185, 186, 187, 187, 188,
-    189, 189, 190, 191, 192, 192, 193, 193, 194, 195, 195, 196, 197, 197, 198, 199, 199, 200, 201,
-    201, 202, 203, 203, 204, 204, 205, 206, 206, 207, 208, 208, 209, 209, 210, 211, 211, 212, 212,
-    213, 214, 214, 215, 215, 216, 217, 217, 218, 218, 219, 219, 220, 221, 221, 222, 222, 223, 224,
-    224, 225, 225, 226, 226, 227, 227, 228, 229, 229, 230, 230, 231, 231, 232, 232, 233, 234, 234,
-    235, 235, 236, 236, 237, 237, 238, 238, 239, 240, 240, 241, 241, 242, 242, 243, 243, 244, 244,
-    245, 245, 246, 246, 247, 247, 248, 248, 249, 249, 250, 250, 251, 251, 252, 252, 253, 253, 254,
-    254, 255,
+    0, 16, 22, 27, 32, 35, 39, 42, 45, 48, 50, 53, 55, 57, 59, 61, 64, 65, 67, 69, 71, 73, 75, 76,
+    78, 80, 81, 83, 84, 86, 87, 89, 90, 91, 93, 94, 96, 97, 98, 99, 101, 102, 103, 104, 106, 107,
+    108, 109, 110, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128,
+    128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 144, 145,
+    146, 147, 148, 149, 150, 150, 151, 152, 153, 154, 155, 155, 156, 157, 158, 159, 160, 160, 161,
+    162, 163, 163, 164, 165, 166, 167, 167, 168, 169, 170, 170, 171, 172, 173, 173, 174, 175, 176,
+    176, 177, 178, 178, 179, 180, 181, 181, 182, 183, 183, 184, 185, 185, 186, 187, 187, 188, 189,
+    189, 190, 191, 192, 192, 193, 193, 194, 195, 195, 196, 197, 197, 198, 199, 199, 200, 201, 201,
+    202, 203, 203, 204, 204, 205, 206, 206, 207, 208, 208, 209, 209, 210, 211, 211, 212, 212, 213,
+    214, 214, 215, 215, 216, 217, 217, 218, 218, 219, 219, 220, 221, 221, 222, 222, 223, 224, 224,
+    225, 225, 226, 226, 227, 227, 228, 229, 229, 230, 230, 231, 231, 232, 232, 233, 234, 234, 235,
+    235, 236, 236, 237, 237, 238, 238, 239, 240, 240, 241, 241, 242, 242, 243, 243, 244, 244, 245,
+    245, 246, 246, 247, 247, 248, 248, 249, 249, 250, 250, 251, 251, 252, 252, 253, 253, 254, 254,
+    255,
 ];
 
 #[inline(always)]
@@ -108,31 +110,60 @@ fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, de
     }
 
     if u1 < u1n {
-        if u2 < u2n { t[u1] as i32 - t[u2] as i32 } else { 1 }
-    } else if u2 < u2n { -1 } else { 0 }
+        if u2 < u2n {
+            t[u1] as i32 - t[u2] as i32
+        } else {
+            1
+        }
+    } else if u2 < u2n {
+        -1
+    } else {
+        0
+    }
 }
 
-fn ss_insertionsort_impl(t: &[u8], pa: &[i32], sa: &mut [i32], first: usize, last: usize, depth: i32) {
-    if last <= first + 1 { return; }
+fn ss_insertionsort_impl(
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    first: usize,
+    last: usize,
+    depth: i32,
+) {
+    if last <= first + 1 {
+        return;
+    }
     let mut i = last as isize - 2;
     while first as isize <= i {
         let tv = sa[i as usize];
         let mut j = i as usize + 1;
         let r: i32 = 'outer: loop {
             // if sa[j] is negative, !sa[j] is the actual value (equivalent to PA + *j in C)
-            let sj = if sa[j] >= 0 { sa[j] as usize } else { !sa[j] as usize };
+            let sj = if sa[j] >= 0 {
+                sa[j] as usize
+            } else {
+                !sa[j] as usize
+            };
             let r = ss_compare(t, pa, tv as usize, pa, sj, depth);
-            if r <= 0 { break r; }
+            if r <= 0 {
+                break r;
+            }
             // r > 0: shift sa[j] into sa[j-1] and advance, skipping over negative elements
             loop {
                 sa[j - 1] = sa[j];
                 j += 1;
-                if j >= last { break 'outer 1; }
-                if sa[j] >= 0 { break; }
+                if j >= last {
+                    break 'outer 1;
+                }
+                if sa[j] >= 0 {
+                    break;
+                }
                 // negative: continue shifting
             }
         };
-        if r == 0 { sa[j] = !sa[j]; }
+        if r == 0 {
+            sa[j] = !sa[j];
+        }
         sa[j - 1] = tv;
         i -= 1;
     }
@@ -173,7 +204,9 @@ fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, 
     let mut m = size;
     if size.is_multiple_of(2) {
         m -= 1;
-        if td[pa_val(pa, pab, sa[first + m / 2]) as usize] < td[pa_val(pa, pab, sa[first + m]) as usize] {
+        if td[pa_val(pa, pab, sa[first + m / 2]) as usize]
+            < td[pa_val(pa, pab, sa[first + m]) as usize]
+        {
             sa.swap(first + m, first + m / 2);
         }
     }
@@ -181,7 +214,9 @@ fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, 
         let mut i = m / 2;
         loop {
             ss_fixdown(td, pa, pab, &mut sa[first..], i, m);
-            if i == 0 { break; }
+            if i == 0 {
+                break;
+            }
             i -= 1;
         }
     }
@@ -200,7 +235,15 @@ fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, 
 }
 
 #[inline(always)]
-fn ss_median3_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], mut v1: usize, mut v2: usize, v3: usize) -> usize {
+fn ss_median3_idx(
+    td: &[u8],
+    pa: &[i32],
+    pab: usize,
+    sa: &[i32],
+    mut v1: usize,
+    mut v2: usize,
+    v3: usize,
+) -> usize {
     if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v2]) as usize] {
         std::mem::swap(&mut v1, &mut v2);
     }
@@ -217,18 +260,28 @@ fn ss_median3_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], mut v1: usize, 
 #[inline(always)]
 fn ss_median5_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], v: [usize; 5]) -> usize {
     let [mut v1, mut v2, mut v3, mut v4, mut v5] = v;
-    if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] { std::mem::swap(&mut v2, &mut v3); }
-    if td[pa_val(pa, pab, sa[v4]) as usize] > td[pa_val(pa, pab, sa[v5]) as usize] { std::mem::swap(&mut v4, &mut v5); }
+    if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
+        std::mem::swap(&mut v2, &mut v3);
+    }
+    if td[pa_val(pa, pab, sa[v4]) as usize] > td[pa_val(pa, pab, sa[v5]) as usize] {
+        std::mem::swap(&mut v4, &mut v5);
+    }
     if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
         std::mem::swap(&mut v2, &mut v4);
         std::mem::swap(&mut v3, &mut v5);
     }
-    if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] { std::mem::swap(&mut v1, &mut v3); }
+    if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
+        std::mem::swap(&mut v1, &mut v3);
+    }
     if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
         std::mem::swap(&mut v1, &mut v4);
         std::mem::swap(&mut v3, &mut v5);
     }
-    if td[pa_val(pa, pab, sa[v3]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] { v4 } else { v3 }
+    if td[pa_val(pa, pab, sa[v3]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
+        v4
+    } else {
+        v3
+    }
 }
 
 fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, last: usize) -> usize {
@@ -239,7 +292,13 @@ fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, las
             ss_median3_idx(td, pa, pab, sa, first, middle, last - 1)
         } else {
             let t2 = (t >> 2) as usize;
-            ss_median5_idx(td, pa, pab, sa, [first, first + t2, middle, last - 1 - t2, last - 1])
+            ss_median5_idx(
+                td,
+                pa,
+                pab,
+                sa,
+                [first, first + t2, middle, last - 1 - t2, last - 1],
+            )
         }
     } else {
         let t2 = (t >> 3) as usize;
@@ -252,26 +311,43 @@ fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, las
 
 /// Partitions [first..last) into two parts and returns the boundary index.
 /// pa is the full SA snapshot; pab is the PAb offset (PA = SA[pab..]).
-fn ss_partition(pa: &[i32], pab: usize, sa: &mut [i32], first: usize, last: usize, depth: i32) -> usize {
+fn ss_partition(
+    pa: &[i32],
+    pab: usize,
+    sa: &mut [i32],
+    first: usize,
+    last: usize,
+    depth: i32,
+) -> usize {
     let mut a = first;
     let mut b = last;
     loop {
         // C: for(; (++a < b) && ((PA[*a] + depth) >= (PA[*a + 1] + 1));) { *a = ~*a; }
         loop {
-            if a >= b { break; }
+            if a >= b {
+                break;
+            }
             let v = sa[a];
-            if (pa_val(pa, pab, v) + depth) < (pa_val(pa, pab, v + 1) + 1) { break; }
+            if (pa_val(pa, pab, v) + depth) < (pa_val(pa, pab, v + 1) + 1) {
+                break;
+            }
             sa[a] = !v;
             a += 1;
         }
         // C: for(; (a < --b) && ((PA[*b] + depth) < (PA[*b + 1] + 1));) { }
         loop {
-            if b <= a { break; }
+            if b <= a {
+                break;
+            }
             b -= 1;
             let v = sa[b];
-            if (pa_val(pa, pab, v) + depth) >= (pa_val(pa, pab, v + 1) + 1) { break; }
+            if (pa_val(pa, pab, v) + depth) >= (pa_val(pa, pab, v + 1) + 1) {
+                break;
+            }
         }
-        if b <= a { break; }
+        if b <= a {
+            break;
+        }
         let t = !sa[b];
         sa[b] = sa[a];
         sa[a] = t;
@@ -291,8 +367,21 @@ struct MiSortFrame {
     limit: i32,
 }
 
-fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, last: usize, depth: i32) {
-    let mut stack = [MiSortFrame { first: 0, last: 0, depth: 0, limit: 0 }; SS_MISORT_STACKSIZE];
+fn ss_mintrosort(
+    t: &[u8],
+    pa: &[i32],
+    pab: usize,
+    sa: &mut [i32],
+    first: usize,
+    last: usize,
+    depth: i32,
+) {
+    let mut stack = [MiSortFrame {
+        first: 0,
+        last: 0,
+        depth: 0,
+        limit: 0,
+    }; SS_MISORT_STACKSIZE];
     let mut ssize = 0usize;
     let pa_slice = &pa[pab..]; // for insertionsort (uses non-negative PAb indices)
 
@@ -307,10 +396,15 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
                 ss_insertionsort_impl(t, pa_slice, sa, first, last, depth);
             }
             // STACK_POP
-            if ssize == 0 { return; }
+            if ssize == 0 {
+                return;
+            }
             ssize -= 1;
             let f = stack[ssize];
-            first = f.first; last = f.last; depth = f.depth; limit = f.limit;
+            first = f.first;
+            last = f.last;
+            depth = f.depth;
+            limit = f.limit;
             continue;
         }
 
@@ -327,7 +421,9 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
             while a < last {
                 let x = t[td_offset + pa_val(pa, pab, sa[a]) as usize] as i32;
                 if x != v {
-                    if a - first > 1 { break; }
+                    if a - first > 1 {
+                        break;
+                    }
                     v = x;
                     first = a;
                 }
@@ -339,7 +435,12 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
             }
             if a - first <= last - a {
                 if a - first > 1 {
-                    stack[ssize] = MiSortFrame { first: a, last, depth, limit: -1 };
+                    stack[ssize] = MiSortFrame {
+                        first: a,
+                        last,
+                        depth,
+                        limit: -1,
+                    };
                     ssize += 1;
                     last = a;
                     depth += 1;
@@ -349,7 +450,12 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
                     limit = -1;
                 }
             } else if last - a > 1 {
-                stack[ssize] = MiSortFrame { first, last: a, depth: depth + 1, limit: ss_ilg((a - first) as i32) };
+                stack[ssize] = MiSortFrame {
+                    first,
+                    last: a,
+                    depth: depth + 1,
+                    limit: ss_ilg((a - first) as i32),
+                };
                 ssize += 1;
                 first = a;
                 limit = -1;
@@ -370,7 +476,9 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
         let mut x = 0i32;
         while b < last {
             x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-            if x != v { break; }
+            if x != v {
+                break;
+            }
             b += 1;
         }
         let mut a = b;
@@ -379,33 +487,55 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
             // for(; (++b < last) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
             loop {
                 b += 1;
-                if b >= last { break; }
+                if b >= last {
+                    break;
+                }
                 x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-                if x > v { break; }
-                if x == v { sa.swap(b, a); a += 1; }
+                if x > v {
+                    break;
+                }
+                if x == v {
+                    sa.swap(b, a);
+                    a += 1;
+                }
             }
         }
         // Right scan: for(c = last; (b < --c) && ((x = Td[PA[*c]]) == v);)
         // --c always happens first, then check b < c
         let mut c = last;
         loop {
-            if c == 0 { break; }
+            if c == 0 {
+                break;
+            }
             c -= 1;
-            if c <= b { break; }  // b < --c failed
+            if c <= b {
+                break;
+            } // b < --c failed
             x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-            if x != v { break; }
+            if x != v {
+                break;
+            }
         }
         // d = c  (C: if((b < (d = c)) && (x > v)))
         let mut d = c;
         if b < c && x > v {
             // for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
             loop {
-                if c == 0 { break; }
+                if c == 0 {
+                    break;
+                }
                 c -= 1;
-                if c <= b { break; }
+                if c <= b {
+                    break;
+                }
                 x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-                if x < v { break; }
-                if x == v { sa.swap(c, d); d -= 1; }
+                if x < v {
+                    break;
+                }
+                if x == v {
+                    sa.swap(c, d);
+                    d -= 1;
+                }
             }
         }
         // Main loop: for(; b < c;)
@@ -414,19 +544,35 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
             // Inner left: for(; (++b < c) && ((x = Td[PA[*b]]) <= v);) { if x==v swap }
             loop {
                 b += 1;
-                if b >= c { break; }
+                if b >= c {
+                    break;
+                }
                 x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
-                if x > v { break; }
-                if x == v { sa.swap(b, a); a += 1; }
+                if x > v {
+                    break;
+                }
+                if x == v {
+                    sa.swap(b, a);
+                    a += 1;
+                }
             }
             // Inner right: for(; (b < --c) && ((x = Td[PA[*c]]) >= v);) { if x==v SWAP(*c,*d); --d }
             loop {
-                if c == 0 { break; }
+                if c == 0 {
+                    break;
+                }
                 c -= 1;
-                if c <= b { break; }
+                if c <= b {
+                    break;
+                }
                 x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
-                if x < v { break; }
-                if x == v { sa.swap(c, d); d -= 1; }
+                if x < v {
+                    break;
+                }
+                if x == v {
+                    sa.swap(c, d);
+                    d -= 1;
+                }
             }
         }
 
@@ -434,12 +580,20 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
             // C: c = b - 1 (reset for blockswap)
             let c_new = b - 1;
             let s = (a - first).min(b - a);
-            for k in 0..s { sa.swap(first + k, b - s + k); }
+            for k in 0..s {
+                sa.swap(first + k, b - s + k);
+            }
             // C uses signed: if((s = d - c) > (t = last - d - 1)) { s = t; }
-            let dc = d as i64 - c_new as i64;   // d - (b - 1)
+            let dc = d as i64 - c_new as i64; // d - (b - 1)
             let ldd = last as i64 - d as i64 - 1; // last - d - 1 (can be negative)
-            let s2 = if dc > 0 && ldd > 0 { dc.min(ldd) as usize } else { 0 };
-            for k in 0..s2 { sa.swap(b + k, last - s2 + k); }
+            let s2 = if dc > 0 && ldd > 0 {
+                dc.min(ldd) as usize
+            } else {
+                0
+            };
+            for k in 0..s2 {
+                sa.swap(b + k, last - s2 + k);
+            }
 
             let new_a = first + (b - a);
             let new_c = (last as i64 - dc) as usize;
@@ -453,42 +607,108 @@ fn ss_mintrosort(t: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize,
 
             if new_a - first <= last - new_c {
                 if last - new_c <= new_c - b2 {
-                    stack[ssize] = MiSortFrame { first: b2, last: new_c, depth: depth + 1, limit: ss_ilg((new_c - b2) as i32) };
+                    stack[ssize] = MiSortFrame {
+                        first: b2,
+                        last: new_c,
+                        depth: depth + 1,
+                        limit: ss_ilg((new_c - b2) as i32),
+                    };
                     ssize += 1;
-                    stack[ssize] = MiSortFrame { first: new_c, last, depth, limit };
+                    stack[ssize] = MiSortFrame {
+                        first: new_c,
+                        last,
+                        depth,
+                        limit,
+                    };
                     ssize += 1;
                     last = new_a;
                 } else if new_a - first <= new_c - b2 {
-                    stack[ssize] = MiSortFrame { first: new_c, last, depth, limit };
+                    stack[ssize] = MiSortFrame {
+                        first: new_c,
+                        last,
+                        depth,
+                        limit,
+                    };
                     ssize += 1;
-                    stack[ssize] = MiSortFrame { first: b2, last: new_c, depth: depth + 1, limit: ss_ilg((new_c - b2) as i32) };
+                    stack[ssize] = MiSortFrame {
+                        first: b2,
+                        last: new_c,
+                        depth: depth + 1,
+                        limit: ss_ilg((new_c - b2) as i32),
+                    };
                     ssize += 1;
                     last = new_a;
                 } else {
-                    stack[ssize] = MiSortFrame { first: new_c, last, depth, limit };
+                    stack[ssize] = MiSortFrame {
+                        first: new_c,
+                        last,
+                        depth,
+                        limit,
+                    };
                     ssize += 1;
-                    stack[ssize] = MiSortFrame { first, last: new_a, depth, limit };
+                    stack[ssize] = MiSortFrame {
+                        first,
+                        last: new_a,
+                        depth,
+                        limit,
+                    };
                     ssize += 1;
-                    first = b2; last = new_c; depth += 1; limit = ss_ilg((new_c - b2) as i32);
+                    first = b2;
+                    last = new_c;
+                    depth += 1;
+                    limit = ss_ilg((new_c - b2) as i32);
                 }
             } else if new_a - first <= new_c - b2 {
-                stack[ssize] = MiSortFrame { first: b2, last: new_c, depth: depth + 1, limit: ss_ilg((new_c - b2) as i32) };
+                stack[ssize] = MiSortFrame {
+                    first: b2,
+                    last: new_c,
+                    depth: depth + 1,
+                    limit: ss_ilg((new_c - b2) as i32),
+                };
                 ssize += 1;
-                stack[ssize] = MiSortFrame { first, last: new_a, depth, limit };
+                stack[ssize] = MiSortFrame {
+                    first,
+                    last: new_a,
+                    depth,
+                    limit,
+                };
                 ssize += 1;
                 first = new_c;
             } else if last - new_c <= new_c - b2 {
-                stack[ssize] = MiSortFrame { first, last: new_a, depth, limit };
+                stack[ssize] = MiSortFrame {
+                    first,
+                    last: new_a,
+                    depth,
+                    limit,
+                };
                 ssize += 1;
-                stack[ssize] = MiSortFrame { first: b2, last: new_c, depth: depth + 1, limit: ss_ilg((new_c - b2) as i32) };
+                stack[ssize] = MiSortFrame {
+                    first: b2,
+                    last: new_c,
+                    depth: depth + 1,
+                    limit: ss_ilg((new_c - b2) as i32),
+                };
                 ssize += 1;
                 first = new_c;
             } else {
-                stack[ssize] = MiSortFrame { first, last: new_a, depth, limit };
+                stack[ssize] = MiSortFrame {
+                    first,
+                    last: new_a,
+                    depth,
+                    limit,
+                };
                 ssize += 1;
-                stack[ssize] = MiSortFrame { first: new_c, last, depth, limit };
+                stack[ssize] = MiSortFrame {
+                    first: new_c,
+                    last,
+                    depth,
+                    limit,
+                };
                 ssize += 1;
-                first = b2; last = new_c; depth += 1; limit = ss_ilg((new_c - b2) as i32);
+                first = b2;
+                last = new_c;
+                depth += 1;
+                limit = ss_ilg((new_c - b2) as i32);
             }
         } else {
             limit += 1;
@@ -515,8 +735,13 @@ fn ss_rotate(sa: &mut [i32], first: usize, middle: usize, last: usize) {
 }
 
 fn ss_inplacemerge(
-    t: &[u8], pa: &[i32], sa: &mut [i32],
-    first: usize, middle: usize, last: usize, depth: i32,
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    first: usize,
+    middle: usize,
+    last: usize,
+    depth: i32,
 ) {
     let mut middle = middle;
     let mut last = last;
@@ -533,7 +758,11 @@ fn ss_inplacemerge(
         let mut r = -1i32;
         while 0 < len {
             let b = a + half as usize;
-            let bv = if sa[b] >= 0 { sa[b] as usize } else { !sa[b] as usize };
+            let bv = if sa[b] >= 0 {
+                sa[b] as usize
+            } else {
+                !sa[b] as usize
+            };
             let q = ss_compare(t, pa, bv, pa, p, depth);
             if q < 0 {
                 a = b + 1;
@@ -545,29 +774,52 @@ fn ss_inplacemerge(
             half >>= 1;
         }
         if a < middle {
-            if r == 0 { sa[a] = !sa[a]; }
+            if r == 0 {
+                sa[a] = !sa[a];
+            }
             ss_rotate(sa, a, middle, last);
             last -= middle - a;
             middle = a;
-            if first == middle { break; }
+            if first == middle {
+                break;
+            }
         }
         last -= 1;
         if x != 0 {
-            while sa[last - 1] < 0 { last -= 1; }
+            while sa[last - 1] < 0 {
+                last -= 1;
+            }
         }
-        if middle == last { break; }
+        if middle == last {
+            break;
+        }
     }
 }
 
-struct MergeRange { first: usize, middle: usize, last: usize }
+struct MergeRange {
+    first: usize,
+    middle: usize,
+    last: usize,
+}
 
-struct BufInfo { buf: usize, bufsize: usize }
+struct BufInfo {
+    buf: usize,
+    bufsize: usize,
+}
 
 fn ss_mergeforward(
-    t: &[u8], pa: &[i32], sa: &mut [i32],
-    range: MergeRange, buf: usize, depth: i32,
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    range: MergeRange,
+    buf: usize,
+    depth: i32,
 ) {
-    let MergeRange { first, middle, last } = range;
+    let MergeRange {
+        first,
+        middle,
+        last,
+    } = range;
     let bufend = buf + (middle - first) - 1;
     ss_blockswap(sa, buf, first, middle - first);
 
@@ -580,53 +832,107 @@ fn ss_mergeforward(
         let r = ss_compare(t, pa, sa[b] as usize, pa, sa[c] as usize, depth);
         if r < 0 {
             loop {
-                sa[a] = sa[b]; a += 1;
-                if bufend <= b { sa[bufend] = tv; return; }
-                sa[b] = sa[a]; b += 1;
-                if sa[b] >= 0 { break; }
+                sa[a] = sa[b];
+                a += 1;
+                if bufend <= b {
+                    sa[bufend] = tv;
+                    return;
+                }
+                sa[b] = sa[a];
+                b += 1;
+                if sa[b] >= 0 {
+                    break;
+                }
             }
         } else if r > 0 {
             loop {
-                sa[a] = sa[c]; a += 1; sa[c] = sa[a]; c += 1;
+                sa[a] = sa[c];
+                a += 1;
+                sa[c] = sa[a];
+                c += 1;
                 if c >= last {
-                    while b < bufend { sa[a] = sa[b]; a += 1; sa[b] = sa[a]; b += 1; }
-                    sa[a] = sa[b]; sa[b] = tv;
+                    while b < bufend {
+                        sa[a] = sa[b];
+                        a += 1;
+                        sa[b] = sa[a];
+                        b += 1;
+                    }
+                    sa[a] = sa[b];
+                    sa[b] = tv;
                     return;
                 }
-                if sa[c] >= 0 { break; }
+                if sa[c] >= 0 {
+                    break;
+                }
             }
         } else {
             sa[c] = !sa[c];
             loop {
-                sa[a] = sa[b]; a += 1;
-                if bufend <= b { sa[bufend] = tv; return; }
-                sa[b] = sa[a]; b += 1;
-                if sa[b] >= 0 { break; }
-            }
-            loop {
-                sa[a] = sa[c]; a += 1; sa[c] = sa[a]; c += 1;
-                if c >= last {
-                    while b < bufend { sa[a] = sa[b]; a += 1; sa[b] = sa[a]; b += 1; }
-                    sa[a] = sa[b]; sa[b] = tv;
+                sa[a] = sa[b];
+                a += 1;
+                if bufend <= b {
+                    sa[bufend] = tv;
                     return;
                 }
-                if sa[c] >= 0 { break; }
+                sa[b] = sa[a];
+                b += 1;
+                if sa[b] >= 0 {
+                    break;
+                }
+            }
+            loop {
+                sa[a] = sa[c];
+                a += 1;
+                sa[c] = sa[a];
+                c += 1;
+                if c >= last {
+                    while b < bufend {
+                        sa[a] = sa[b];
+                        a += 1;
+                        sa[b] = sa[a];
+                        b += 1;
+                    }
+                    sa[a] = sa[b];
+                    sa[b] = tv;
+                    return;
+                }
+                if sa[c] >= 0 {
+                    break;
+                }
             }
         }
     }
 }
 
 fn ss_mergebackward(
-    t: &[u8], pa: &[i32], sa: &mut [i32],
-    range: MergeRange, buf: usize, depth: i32,
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    range: MergeRange,
+    buf: usize,
+    depth: i32,
 ) {
-    let MergeRange { first, middle, last } = range;
+    let MergeRange {
+        first,
+        middle,
+        last,
+    } = range;
     let bufend = buf + (last - middle) - 1;
     ss_blockswap(sa, buf, middle, last - middle);
 
     let mut x = 0i32;
-    let p1 = if sa[bufend] < 0 { x |= 1; !sa[bufend] as usize } else { sa[bufend] as usize };
-    let p2 = if sa[middle - 1] < 0 { x |= 2; !sa[middle - 1] as usize } else { sa[middle - 1] as usize };
+    let p1 = if sa[bufend] < 0 {
+        x |= 1;
+        !sa[bufend] as usize
+    } else {
+        sa[bufend] as usize
+    };
+    let p2 = if sa[middle - 1] < 0 {
+        x |= 2;
+        !sa[middle - 1] as usize
+    } else {
+        sa[middle - 1] as usize
+    };
 
     let tv = sa[last - 1];
     let mut a = last - 1;
@@ -639,56 +945,145 @@ fn ss_mergebackward(
         let r = ss_compare(t, pa, p1, pa, p2, depth);
         if r > 0 {
             if x & 1 != 0 {
-                loop { sa[a] = sa[b]; a = a.saturating_sub(1); sa[b] = sa[a]; if b > buf { b -= 1; } else { break; }
-                if sa[b] >= 0 { break; } }
+                loop {
+                    sa[a] = sa[b];
+                    a = a.saturating_sub(1);
+                    sa[b] = sa[a];
+                    if b > buf {
+                        b -= 1;
+                    } else {
+                        break;
+                    }
+                    if sa[b] >= 0 {
+                        break;
+                    }
+                }
                 x ^= 1;
             }
             sa[a] = sa[b];
             a = a.saturating_sub(1);
-            if b <= buf { sa[buf] = tv; break; }
+            if b <= buf {
+                sa[buf] = tv;
+                break;
+            }
             b -= 1;
             sa[b + 1] = sa[a]; // *b-- = *a  (b already decremented, so b+1 = b_old)
-            p1 = if sa[b] < 0 { x |= 1; !sa[b] as usize } else { sa[b] as usize };
+            p1 = if sa[b] < 0 {
+                x |= 1;
+                !sa[b] as usize
+            } else {
+                sa[b] as usize
+            };
         } else if r < 0 {
             if x & 2 != 0 {
-                loop { sa[a] = sa[c]; a = a.saturating_sub(1); sa[c] = sa[a]; if c > first { c -= 1; } else { break; }
-                if sa[c] >= 0 { break; } }
+                loop {
+                    sa[a] = sa[c];
+                    a = a.saturating_sub(1);
+                    sa[c] = sa[a];
+                    if c > first {
+                        c -= 1;
+                    } else {
+                        break;
+                    }
+                    if sa[c] >= 0 {
+                        break;
+                    }
+                }
                 x ^= 2;
             }
-            sa[a] = sa[c]; a = a.saturating_sub(1);
+            sa[a] = sa[c];
+            a = a.saturating_sub(1);
             sa[c] = sa[a];
             if c == 0 || c <= first {
-                while buf < b { sa[a] = sa[b]; a = a.saturating_sub(1); sa[b] = sa[a]; if b > buf { b -= 1; } }
-                sa[a] = sa[b]; sa[b] = tv;
+                while buf < b {
+                    sa[a] = sa[b];
+                    a = a.saturating_sub(1);
+                    sa[b] = sa[a];
+                    if b > buf {
+                        b -= 1;
+                    }
+                }
+                sa[a] = sa[b];
+                sa[b] = tv;
                 break;
             }
             c -= 1;
-            p2 = if sa[c] < 0 { x |= 2; !sa[c] as usize } else { sa[c] as usize };
+            p2 = if sa[c] < 0 {
+                x |= 2;
+                !sa[c] as usize
+            } else {
+                sa[c] as usize
+            };
         } else {
             if x & 1 != 0 {
-                loop { sa[a] = sa[b]; a = a.saturating_sub(1); sa[b] = sa[a]; if b > buf { b -= 1; } else { break; }
-                if sa[b] >= 0 { break; } }
+                loop {
+                    sa[a] = sa[b];
+                    a = a.saturating_sub(1);
+                    sa[b] = sa[a];
+                    if b > buf {
+                        b -= 1;
+                    } else {
+                        break;
+                    }
+                    if sa[b] >= 0 {
+                        break;
+                    }
+                }
                 x ^= 1;
             }
-            sa[a] = !sa[b]; a = a.saturating_sub(1);
-            if b <= buf { sa[buf] = tv; break; }
+            sa[a] = !sa[b];
+            a = a.saturating_sub(1);
+            if b <= buf {
+                sa[buf] = tv;
+                break;
+            }
             b -= 1;
             sa[b + 1] = sa[a]; // b already decremented, so b+1 = b_old
             if x & 2 != 0 {
-                loop { sa[a] = sa[c]; a = a.saturating_sub(1); sa[c] = sa[a]; if c > first { c -= 1; } else { break; }
-                if sa[c] >= 0 { break; } }
+                loop {
+                    sa[a] = sa[c];
+                    a = a.saturating_sub(1);
+                    sa[c] = sa[a];
+                    if c > first {
+                        c -= 1;
+                    } else {
+                        break;
+                    }
+                    if sa[c] >= 0 {
+                        break;
+                    }
+                }
                 x ^= 2;
             }
-            sa[a] = sa[c]; a = a.saturating_sub(1);
+            sa[a] = sa[c];
+            a = a.saturating_sub(1);
             sa[c] = sa[a];
             if c == 0 || c <= first {
-                while buf < b { sa[a] = sa[b]; a = a.saturating_sub(1); sa[b] = sa[a]; if b > buf { b -= 1; } }
-                sa[a] = sa[b]; sa[b] = tv;
+                while buf < b {
+                    sa[a] = sa[b];
+                    a = a.saturating_sub(1);
+                    sa[b] = sa[a];
+                    if b > buf {
+                        b -= 1;
+                    }
+                }
+                sa[a] = sa[b];
+                sa[b] = tv;
                 break;
             }
             c -= 1;
-            p1 = if sa[b] < 0 { x |= 1; !sa[b] as usize } else { sa[b] as usize };
-            p2 = if sa[c] < 0 { x |= 2; !sa[c] as usize } else { sa[c] as usize };
+            p1 = if sa[b] < 0 {
+                x |= 1;
+                !sa[b] as usize
+            } else {
+                sa[b] as usize
+            };
+            p2 = if sa[c] < 0 {
+                x |= 2;
+                !sa[c] as usize
+            } else {
+                sa[c] as usize
+            };
         }
     }
 }
@@ -702,11 +1097,20 @@ struct SmergeFrame {
 }
 
 fn ss_swapmerge(
-    t: &[u8], pa: &[i32], sa: &mut [i32],
-    range: MergeRange, buf_info: BufInfo, depth: i32,
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    range: MergeRange,
+    buf_info: BufInfo,
+    depth: i32,
 ) {
     let BufInfo { buf, bufsize } = buf_info;
-    let mut stack = [SmergeFrame { first: 0, middle: 0, last: 0, check: 0 }; SS_SMERGE_STACKSIZE];
+    let mut stack = [SmergeFrame {
+        first: 0,
+        middle: 0,
+        last: 0,
+        check: 0,
+    }; SS_SMERGE_STACKSIZE];
     let mut ssize = 0usize;
 
     let mut first = range.first;
@@ -717,27 +1121,59 @@ fn ss_swapmerge(
     loop {
         if last - middle <= bufsize {
             if first < middle && middle < last {
-                ss_mergebackward(t, pa, sa, MergeRange { first, middle, last }, buf, depth);
+                ss_mergebackward(
+                    t,
+                    pa,
+                    sa,
+                    MergeRange {
+                        first,
+                        middle,
+                        last,
+                    },
+                    buf,
+                    depth,
+                );
             }
             // MERGE_CHECK
             merge_check(t, pa, sa, first, last, check, depth);
             // STACK_POP
-            if ssize == 0 { return; }
+            if ssize == 0 {
+                return;
+            }
             ssize -= 1;
             let f = stack[ssize];
-            first = f.first; middle = f.middle; last = f.last; check = f.check;
+            first = f.first;
+            middle = f.middle;
+            last = f.last;
+            check = f.check;
             continue;
         }
 
         if middle - first <= bufsize {
             if first < middle {
-                ss_mergeforward(t, pa, sa, MergeRange { first, middle, last }, buf, depth);
+                ss_mergeforward(
+                    t,
+                    pa,
+                    sa,
+                    MergeRange {
+                        first,
+                        middle,
+                        last,
+                    },
+                    buf,
+                    depth,
+                );
             }
             merge_check(t, pa, sa, first, last, check, depth);
-            if ssize == 0 { return; }
+            if ssize == 0 {
+                return;
+            }
             ssize -= 1;
             let f = stack[ssize];
-            first = f.first; middle = f.middle; last = f.last; check = f.check;
+            first = f.first;
+            middle = f.middle;
+            last = f.last;
+            check = f.check;
             continue;
         }
 
@@ -750,11 +1186,19 @@ fn ss_swapmerge(
         while 0 < len {
             let li = {
                 let vi = middle + m + half as usize;
-                if sa[vi] >= 0 { sa[vi] as usize } else { !sa[vi] as usize }
+                if sa[vi] >= 0 {
+                    sa[vi] as usize
+                } else {
+                    !sa[vi] as usize
+                }
             };
             let ri = {
                 let vi2 = middle - m - half as usize - 1;
-                if sa[vi2] >= 0 { sa[vi2] as usize } else { !sa[vi2] as usize }
+                if sa[vi2] >= 0 {
+                    sa[vi2] as usize
+                } else {
+                    !sa[vi2] as usize
+                }
             };
             if ss_compare(t, pa, li, pa, ri, depth) < 0 {
                 m += half as usize + 1;
@@ -776,38 +1220,73 @@ fn ss_swapmerge(
                     sa[rm] = !sa[rm];
                     if first < lm {
                         loop {
-                            if l == 0 { break; }
+                            if l == 0 {
+                                break;
+                            }
                             l -= 1;
-                            if sa[l] >= 0 { break; }
+                            if sa[l] >= 0 {
+                                break;
+                            }
                         }
                         next |= 4;
                     }
                     next |= 1;
                 } else if first < lm {
-                    while sa[r] < 0 { r += 1; }
+                    while sa[r] < 0 {
+                        r += 1;
+                    }
                     next |= 2;
                 }
             }
 
             if l - first <= last - r {
-                stack[ssize] = SmergeFrame { first: r, middle: rm, last, check: (next & 3) | (check & 4) };
+                stack[ssize] = SmergeFrame {
+                    first: r,
+                    middle: rm,
+                    last,
+                    check: (next & 3) | (check & 4),
+                };
                 ssize += 1;
-                middle = lm; last = l; check = (check & 3) | (next & 4);
+                middle = lm;
+                last = l;
+                check = (check & 3) | (next & 4);
             } else {
-                if (next & 2) != 0 && r == middle { next ^= 6; }
-                stack[ssize] = SmergeFrame { first, middle: lm, last: l, check: (check & 3) | (next & 4) };
+                if (next & 2) != 0 && r == middle {
+                    next ^= 6;
+                }
+                stack[ssize] = SmergeFrame {
+                    first,
+                    middle: lm,
+                    last: l,
+                    check: (check & 3) | (next & 4),
+                };
                 ssize += 1;
-                first = r; middle = rm; check = (next & 3) | (check & 4);
+                first = r;
+                middle = rm;
+                check = (next & 3) | (check & 4);
             }
         } else {
-            if ss_compare(t, pa, sa[middle - 1] as usize, pa, sa[middle] as usize, depth) == 0 {
+            if ss_compare(
+                t,
+                pa,
+                sa[middle - 1] as usize,
+                pa,
+                sa[middle] as usize,
+                depth,
+            ) == 0
+            {
                 sa[middle] = !sa[middle];
             }
             merge_check(t, pa, sa, first, last, check, depth);
-            if ssize == 0 { return; }
+            if ssize == 0 {
+                return;
+            }
             ssize -= 1;
             let f = stack[ssize];
-            first = f.first; middle = f.middle; last = f.last; check = f.check;
+            first = f.first;
+            middle = f.middle;
+            last = f.last;
+            check = f.check;
         }
     }
 }
@@ -817,13 +1296,24 @@ const fn getidx(a: i32) -> usize {
     if a >= 0 { a as usize } else { !a as usize }
 }
 
-fn merge_check(t: &[u8], pa: &[i32], sa: &mut [i32], first: usize, last: usize, check: i32, depth: i32) {
+fn merge_check(
+    t: &[u8],
+    pa: &[i32],
+    sa: &mut [i32],
+    first: usize,
+    last: usize,
+    check: i32,
+    depth: i32,
+) {
     if (check & 1) != 0
-        || ((check & 2) != 0 && ss_compare(t, pa, getidx(sa[first - 1]), pa, sa[first] as usize, depth) == 0)
+        || ((check & 2) != 0
+            && ss_compare(t, pa, getidx(sa[first - 1]), pa, sa[first] as usize, depth) == 0)
     {
         sa[first] = !sa[first];
     }
-    if (check & 4) != 0 && ss_compare(t, pa, getidx(sa[last - 1]), pa, sa[last] as usize, depth) == 0 {
+    if (check & 4) != 0
+        && ss_compare(t, pa, getidx(sa[last - 1]), pa, sa[last] as usize, depth) == 0
+    {
         sa[last] = !sa[last];
     }
 }
@@ -850,12 +1340,12 @@ pub fn sssort(
     let (t, pa, pab, depth, n) = (ctx.t, ctx.pa, ctx.pab, ctx.depth, ctx.n);
     let pa_slice = &pa[pab..]; // shifted slice for ss_compare and merge functions
     let mut first = first;
-    if lastsuffix { first += 1; }
+    if lastsuffix {
+        first += 1;
+    }
 
     let (middle, limit, bufsize, buf) =
-        if (bufsize as usize) < SS_BLOCKSIZE
-            && (bufsize as usize) < last - first
-        {
+        if (bufsize as usize) < SS_BLOCKSIZE && (bufsize as usize) < last - first {
             let limit = ss_isqrt((last - first) as i32);
             let limit = limit.min(SS_BLOCKSIZE as i32);
             let middle = last - limit as usize;
@@ -878,7 +1368,21 @@ pub fn sssort(
         let mut k = SS_BLOCKSIZE;
         let mut j = i;
         while j & 1 != 0 {
-            ss_swapmerge(t, pa_slice, sa, MergeRange { first: b - k, middle: b, last: b + k }, BufInfo { buf: curbuf, bufsize: curbufsize }, depth);
+            ss_swapmerge(
+                t,
+                pa_slice,
+                sa,
+                MergeRange {
+                    first: b - k,
+                    middle: b,
+                    last: b + k,
+                },
+                BufInfo {
+                    buf: curbuf,
+                    bufsize: curbufsize,
+                },
+                depth,
+            );
             b -= k;
             k <<= 1;
             j >>= 1;
@@ -892,7 +1396,21 @@ pub fn sssort(
     let mut ii = i;
     while ii != 0 {
         if ii & 1 != 0 {
-            ss_swapmerge(t, pa_slice, sa, MergeRange { first: a - k, middle: a, last: middle }, BufInfo { buf, bufsize: bufsize as usize }, depth);
+            ss_swapmerge(
+                t,
+                pa_slice,
+                sa,
+                MergeRange {
+                    first: a - k,
+                    middle: a,
+                    last: middle,
+                },
+                BufInfo {
+                    buf,
+                    bufsize: bufsize as usize,
+                },
+                depth,
+            );
             a -= k;
         }
         k <<= 1;
@@ -947,7 +1465,13 @@ mod tests {
         for y in 1..=32i32 {
             let x = y * y;
             assert_eq!(ss_isqrt(x), y, "ss_isqrt({x}) should be {y}");
-            assert_eq!(ss_isqrt(x - 1), y - 1, "ss_isqrt({}) should be {}", x - 1, y - 1);
+            assert_eq!(
+                ss_isqrt(x - 1),
+                y - 1,
+                "ss_isqrt({}) should be {}",
+                x - 1,
+                y - 1
+            );
         }
     }
 
@@ -1008,12 +1532,23 @@ mod tests {
         let mut sa = [3i32, 2, 1, 0];
         ss_insertionsort_impl(t, &pa, &mut sa, 0, 4, 0);
         for i in 1..4 {
-            let a = if sa[i - 1] >= 0 { sa[i - 1] as usize } else { !sa[i - 1] as usize };
-            let b = if sa[i] >= 0 { sa[i] as usize } else { !sa[i] as usize };
+            let a = if sa[i - 1] >= 0 {
+                sa[i - 1] as usize
+            } else {
+                !sa[i - 1] as usize
+            };
+            let b = if sa[i] >= 0 {
+                sa[i] as usize
+            } else {
+                !sa[i] as usize
+            };
             assert!(
                 ss_compare(t, &pa, a, &pa, b, 0) <= 0,
                 "not sorted at {i}: sa[{}]={} sa[{}]={}",
-                i - 1, sa[i - 1], i, sa[i]
+                i - 1,
+                sa[i - 1],
+                i,
+                sa[i]
             );
         }
     }
