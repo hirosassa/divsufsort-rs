@@ -1,5 +1,5 @@
 use crate::constants::{
-    FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
+    Depth, FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
     SS_SMERGE_STACKSIZE,
 };
 
@@ -85,7 +85,7 @@ fn ss_isqrt(x: i32) -> i32 {
 /// p1 and p2 are separate slices (for lastsuffix, PAi and PA are different slices).
 /// p1_idx and p2_idx are indices within their respective slices.
 #[inline(always)]
-fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, depth: i32) -> i32 {
+fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, depth: Depth) -> i32 {
     let u1_start = (depth + p1[p1_idx]) as usize;
     let u2_start = (depth + p2[p2_idx]) as usize;
     let u1n = (p1[p1_idx + 1] + 2) as usize;
@@ -117,7 +117,7 @@ fn ss_insertionsort_impl(
     sa: &mut [i32],
     first: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     if last <= first + 1 {
         return;
@@ -306,7 +306,7 @@ fn ss_partition(
     sa: &mut [i32],
     first: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) -> usize {
     let mut a = first;
     let mut b = last;
@@ -352,7 +352,7 @@ fn ss_partition(
 struct MiSortFrame {
     first: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
     limit: i32,
 }
 
@@ -374,7 +374,7 @@ fn ss_three_way_partition(
     sa: &mut [i32],
     first: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
     v: i32,
 ) -> Option<(usize, usize, usize)> {
     let td_offset = depth as usize;
@@ -525,7 +525,7 @@ fn ss_mintrosort(
     sa: &mut [i32],
     first: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let mut stack = FixedStack::<MiSortFrame, { SS_MISORT_STACKSIZE }>::new();
     let pa_slice = &pa[pab..]; // for insertionsort (uses non-negative PAb indices)
@@ -739,7 +739,7 @@ fn ss_inplacemerge(
     first: usize,
     middle: usize,
     last: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let mut middle = middle;
     let mut last = last;
@@ -811,7 +811,7 @@ fn ss_mergeforward(
     sa: &mut [i32],
     range: MergeRange,
     buf: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let MergeRange {
         first,
@@ -939,7 +939,7 @@ fn ss_mergebackward(
     sa: &mut [i32],
     range: MergeRange,
     buf: usize,
-    depth: i32,
+    depth: Depth,
 ) {
     let MergeRange {
         first,
@@ -1083,7 +1083,7 @@ fn ss_swapmerge(
     sa: &mut [i32],
     range: MergeRange,
     buf_info: BufInfo,
-    depth: i32,
+    depth: Depth,
 ) {
     let BufInfo { buf, bufsize } = buf_info;
     let mut stack = FixedStack::<SmergeFrame, { SS_SMERGE_STACKSIZE }>::new();
@@ -1273,7 +1273,7 @@ fn merge_check(
     first: usize,
     last: usize,
     check: i32,
-    depth: i32,
+    depth: Depth,
 ) {
     if (check & 1) != 0
         || ((check & 2) != 0
@@ -1294,7 +1294,7 @@ pub struct SsortCtx<'a> {
     pub pa: &'a [i32],
     /// Offset of PAb within pa (= n - m, number of B*-suffixes from the end).
     pub pab: usize,
-    pub depth: i32,
+    pub depth: Depth,
     pub n: i32,
 }
 
