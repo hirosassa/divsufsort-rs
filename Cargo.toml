@@ -25,7 +25,7 @@ cc = "1"
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
-pprof = { version = "0.13", features = ["flamegraph", "criterion"] }
+pprof = { version = "0.15", features = ["flamegraph", "criterion"] }
 
 [profile.bench]
 debug = true
