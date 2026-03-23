@@ -1,6 +1,5 @@
 use crate::constants::{LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
 
-
 #[inline(always)]
 fn tr_ilg(n: i32) -> i32 {
     if n & 0xffff0000u32 as i32 != 0 {
