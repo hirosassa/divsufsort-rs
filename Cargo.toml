@@ -5,6 +5,12 @@ edition = "2024"
 description = "Pure Rust port of libdivsufsort suffix array construction library"
 license = "MIT"
 
+[package.metadata.release]
+sign-commit = false
+sign-tag = false
+push = true
+publish = false
+
 [features]
 # Enable C libdivsufsort FFI for the bench_compare benchmark.
 # Requires the vendor/libdivsufsort git submodule to be checked out.
