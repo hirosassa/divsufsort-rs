@@ -9,15 +9,14 @@ Pure Rust port of [libdivsufsort](https://github.com/y-256/libdivsufsort) — a 
 
 ## What it does
 
-Constructs the **suffix array** of a byte string in O(n) time. A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
+Constructs the **suffix array** of a byte string in O(n log n) time and 5n + O(1) memory space. A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
 
-The implementation closely follows the original C library by Yuta Mori, including the same sssort / trsort refinement pipeline based on the induced-sorting (IS) algorithm described in:
-
-> Nong, G., Zhang, S., & Chan, W. H. (2009). [Linear Suffix Array Construction by Almost Pure Induced-Sorting](https://www.researchgate.net/publication/221577802_Linear_Suffix_Array_Construction_by_Almost_Pure_Induced-Sorting). *Data Compression Conference (DCC 2009)*, pp. 193–202.
+The implementation closely follows [the original C library](https://github.com/y-256/libdivsufsort) by Yuta Mori.
 
 The B\*-bucket sorting step is parallelised with [rayon](https://github.com/rayon-rs/rayon).
 
-> **Note:** This crate uses `unsafe` Rust internally for performance. Specifically, raw pointer aliasing is used to allow the suffix array and its read-only PA view to share the same allocation (mirroring the original C code), and bounds checks are elided in hot inner loops where invariants can be proven statically. The public API is fully safe.
+> [!IMPORTANT]
+> This crate uses `unsafe` Rust internally for performance. Specifically, raw pointer aliasing is used to allow the suffix array and its read-only PA view to share the same allocation (mirroring the original C code), and bounds checks are elided in hot inner loops where invariants can be proven statically. The public API is fully safe.
 
 ## Usage
 
