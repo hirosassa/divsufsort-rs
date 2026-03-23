@@ -1,5 +1,7 @@
 # divsufsort-rs
 
+[![Crates.io](https://img.shields.io/crates/v/divsufsort-rs.svg)](https://crates.io/crates/divsufsort-rs)
+[![Documentation](https://docs.rs/divsufsort-rs/badge.svg)](https://docs.rs/divsufsort-rs)
 [![build](https://github.com/hirosassa/divsufsort-rs/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/hirosassa/divsufsort-rs/actions/workflows/test.yaml)
 [![codecov](https://codecov.io/gh/hirosassa/divsufsort-rs/branch/main/graph/badge.svg?token=gSFzgTfVwv)](https://codecov.io/gh/hirosassa/divsufsort-rs)
 

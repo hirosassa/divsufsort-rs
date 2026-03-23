@@ -11,9 +11,12 @@ pub use utils::{
     SufCheckError, bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck,
 };
 
+/// Errors returned by the public API of this crate.
 #[derive(Debug, PartialEq, Eq)]
 pub enum DivSufSortError {
+    /// A supplied argument is invalid (e.g. slice length mismatch or out-of-range index).
     InvalidArgument,
+    /// An internal allocation failed. Currently unused; reserved for future use.
     AllocationFailure,
 }
 
