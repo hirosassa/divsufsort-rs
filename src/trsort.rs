@@ -23,6 +23,7 @@ fn tr_ilg(n: i32) -> i32 {
 }
 
 /// Insertion sort for small ranges, skipping negative group markers during shifts.
+#[inline]
 fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
     // C: for(a = first + 1; a < last; ++a) {
     //      for(t = *a, b = a - 1; 0 > (r = ISAd[t] - ISAd[*b]);) {
