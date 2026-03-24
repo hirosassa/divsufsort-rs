@@ -291,7 +291,7 @@ fn sort_typebstar(
 
         // Phase 2: execute bucket sorts in parallel.
         //
-        // Safety invariants that make the raw-pointer aliasing sound:
+        // SAFETY: Safety invariants that make the raw-pointer aliasing sound:
         //   • Each job's sort range [i_val..j) is a disjoint subrange of sa[0..m].
         //     The ranges tile sa[0..m] without overlap (j of job k == i_val of job k−1).
         //   • sssort is called with bufsize=0, so it uses the tail of each job's own

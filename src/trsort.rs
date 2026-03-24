@@ -520,7 +520,7 @@ fn tr_handle_tandem_partition(
     state: &mut TrSortState<'_>,
     incr: usize,
 ) -> bool {
-    // Safety: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar).
+    // SAFETY: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar).
     // tr_partition only reads from isad_tandem and swaps elements in sa.
     let isad_tandem: &[i32] = unsafe {
         let offset = *state.isad - incr;
@@ -825,7 +825,7 @@ fn tr_introsort(
         sa.swap(first, pivot_idx);
         let v = isa[isad + sa[first] as usize];
 
-        // Same aliasing argument as the isad_tandem case above: tr_partition reads from
+        // SAFETY: Same aliasing argument as the isad_tandem case above: tr_partition reads from
         // isad_slice (= isa[isad..]) and swaps within sa; isa and sa are disjoint.
         // After tr_partition returns the slice is no longer live, so the subsequent reads
         // and writes to isa are safe with no aliased reference outstanding.
