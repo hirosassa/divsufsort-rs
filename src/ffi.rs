@@ -1,5 +1,5 @@
 /// FFI bindings to the vendored C libdivsufsort (32-bit index variant).
-use std::os::raw::{c_int, c_uchar};
+use core::ffi::{c_int, c_uchar};
 
 #[link(name = "divsufsort_c", kind = "static")]
 unsafe extern "C" {

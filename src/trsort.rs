@@ -132,7 +132,7 @@ fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
 #[inline(always)]
 fn tr_median3_idx(isad: &[i32], sa: &[i32], mut v1: usize, mut v2: usize, v3: usize) -> usize {
     if isad[sa[v1] as usize] > isad[sa[v2] as usize] {
-        std::mem::swap(&mut v1, &mut v2);
+        core::mem::swap(&mut v1, &mut v2);
     }
     if isad[sa[v2] as usize] > isad[sa[v3] as usize] {
         if isad[sa[v1] as usize] > isad[sa[v3] as usize] {
@@ -155,21 +155,21 @@ fn tr_median5_idx(
     mut v5: usize,
 ) -> usize {
     if isad[sa[v2] as usize] > isad[sa[v3] as usize] {
-        std::mem::swap(&mut v2, &mut v3);
+        core::mem::swap(&mut v2, &mut v3);
     }
     if isad[sa[v4] as usize] > isad[sa[v5] as usize] {
-        std::mem::swap(&mut v4, &mut v5);
+        core::mem::swap(&mut v4, &mut v5);
     }
     if isad[sa[v2] as usize] > isad[sa[v4] as usize] {
-        std::mem::swap(&mut v2, &mut v4);
-        std::mem::swap(&mut v3, &mut v5);
+        core::mem::swap(&mut v2, &mut v4);
+        core::mem::swap(&mut v3, &mut v5);
     }
     if isad[sa[v1] as usize] > isad[sa[v3] as usize] {
-        std::mem::swap(&mut v1, &mut v3);
+        core::mem::swap(&mut v1, &mut v3);
     }
     if isad[sa[v1] as usize] > isad[sa[v4] as usize] {
-        std::mem::swap(&mut v1, &mut v4);
-        std::mem::swap(&mut v3, &mut v5);
+        core::mem::swap(&mut v1, &mut v4);
+        core::mem::swap(&mut v3, &mut v5);
     }
     if isad[sa[v3] as usize] > isad[sa[v4] as usize] {
         v4
@@ -524,7 +524,7 @@ fn tr_handle_tandem_partition(
     // tr_partition only reads from isad_tandem and swaps elements in sa.
     let isad_tandem: &[i32] = unsafe {
         let offset = *state.isad - incr;
-        std::slice::from_raw_parts(isa.as_ptr().add(offset), isa.len() - offset)
+        core::slice::from_raw_parts(isa.as_ptr().add(offset), isa.len() - offset)
     };
     let (a, b) = tr_partition(
         isad_tandem,
@@ -830,7 +830,7 @@ fn tr_introsort(
         // After tr_partition returns the slice is no longer live, so the subsequent reads
         // and writes to isa are safe with no aliased reference outstanding.
         let isad_slice: &[i32] =
-            unsafe { std::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad) };
+            unsafe { core::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad) };
         let (a, b) = tr_partition_owned(isad_slice, sa, first, first + 1, last, v);
 
         if last - first != b - a {

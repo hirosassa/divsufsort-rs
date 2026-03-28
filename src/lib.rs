@@ -1,3 +1,7 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 mod constants;
 mod divsufsort;
 #[cfg(feature = "c-bench")]
@@ -20,8 +24,8 @@ pub enum DivSufSortError {
     AllocationFailure,
 }
 
-impl std::fmt::Display for DivSufSortError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for DivSufSortError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InvalidArgument => write!(f, "invalid argument"),
             Self::AllocationFailure => write!(f, "allocation failure"),
@@ -29,4 +33,5 @@ impl std::fmt::Display for DivSufSortError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for DivSufSortError {}

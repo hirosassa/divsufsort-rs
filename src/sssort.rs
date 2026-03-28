@@ -246,7 +246,7 @@ fn ss_median3_idx(
     v3: usize,
 ) -> usize {
     if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v2]) as usize] {
-        std::mem::swap(&mut v1, &mut v2);
+        core::mem::swap(&mut v1, &mut v2);
     }
     if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
         if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
@@ -262,21 +262,21 @@ fn ss_median3_idx(
 fn ss_median5_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], v: [usize; 5]) -> usize {
     let [mut v1, mut v2, mut v3, mut v4, mut v5] = v;
     if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
-        std::mem::swap(&mut v2, &mut v3);
+        core::mem::swap(&mut v2, &mut v3);
     }
     if td[pa_val(pa, pab, sa[v4]) as usize] > td[pa_val(pa, pab, sa[v5]) as usize] {
-        std::mem::swap(&mut v4, &mut v5);
+        core::mem::swap(&mut v4, &mut v5);
     }
     if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
-        std::mem::swap(&mut v2, &mut v4);
-        std::mem::swap(&mut v3, &mut v5);
+        core::mem::swap(&mut v2, &mut v4);
+        core::mem::swap(&mut v3, &mut v5);
     }
     if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
-        std::mem::swap(&mut v1, &mut v3);
+        core::mem::swap(&mut v1, &mut v3);
     }
     if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
-        std::mem::swap(&mut v1, &mut v4);
-        std::mem::swap(&mut v3, &mut v5);
+        core::mem::swap(&mut v1, &mut v4);
+        core::mem::swap(&mut v3, &mut v5);
     }
     if td[pa_val(pa, pab, sa[v3]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
         v4

@@ -4,10 +4,14 @@
 //! 1. `sort_typebstar` — classify, sort B*-suffixes (parallel sssort + trsort), scatter back
 //! 2. `construct_sa` / `construct_bwt` — induce the full SA or BWT from sorted B*-suffixes
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::DivSufSortError;
 use crate::constants::{ALPHABET_SIZE, BUCKET_A_SIZE, BUCKET_B_SIZE};
 use crate::sssort::{SsortCtx, sssort};
 use crate::trsort::trsort;
+#[cfg(feature = "std")]
 use rayon::prelude::*;
 
 #[inline(always)]
@@ -306,10 +310,14 @@ fn sort_typebstar(
             // usize is Copy + Send + Sync; we cast back to *mut i32 inside each thread.
             let sa_addr: usize = sa.as_mut_ptr() as usize;
             let n1 = n + 1;
-            jobs.par_iter().for_each(|&(i_val, j_val, lastsuffix)| {
+            #[cfg(feature = "std")]
+            let iter = jobs.par_iter();
+            #[cfg(not(feature = "std"))]
+            let iter = jobs.iter();
+            iter.for_each(|&(i_val, j_val, lastsuffix)| {
                 let sa_ptr = sa_addr as *mut i32;
-                let sa_local = unsafe { std::slice::from_raw_parts_mut(sa_ptr, n1) };
-                let pa_local = unsafe { std::slice::from_raw_parts(sa_ptr as *const i32, n1) };
+                let sa_local = unsafe { core::slice::from_raw_parts_mut(sa_ptr, n1) };
+                let pa_local = unsafe { core::slice::from_raw_parts(sa_ptr as *const i32, n1) };
                 let ctx = SsortCtx {
                     t,
                     pa: pa_local,

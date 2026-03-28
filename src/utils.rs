@@ -1,3 +1,8 @@
+use alloc::format;
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::DivSufSortError;
 use crate::constants::ALPHABET_SIZE;
 
@@ -8,12 +13,13 @@ pub struct SufCheckError {
     pub message: String,
 }
 
-impl std::fmt::Display for SufCheckError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for SufCheckError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "sufcheck: {}", self.message)
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for SufCheckError {}
 
 /// Verifies that `sa` is the correct suffix array of `t`.
@@ -26,10 +32,11 @@ impl std::error::Error for SufCheckError {}
 /// # Errors
 ///
 /// Returns [`SufCheckError`] describing the first inconsistency found.
-pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError> {
+pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<(), SufCheckError> {
     let n = t.len();
 
     if n == 0 {
+        #[cfg(feature = "std")]
         if verbose {
             eprintln!("sufcheck: Done.");
         }
@@ -38,6 +45,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError
 
     if sa.len() != n {
         let msg = format!("SA length {} != T length {}", sa.len(), n);
+        #[cfg(feature = "std")]
         if verbose {
             eprintln!("sufcheck: {msg}");
         }
@@ -47,6 +55,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError
     for (i, &s) in sa.iter().enumerate().take(n) {
         if s < 0 || s as usize >= n {
             let msg = format!("Out of the range [0,{}]. SA[{}]={}", n - 1, i, s);
+            #[cfg(feature = "std")]
             if verbose {
                 eprintln!("sufcheck: {msg}");
             }
@@ -65,6 +74,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError
                 sa[i],
                 t[sa[i] as usize]
             );
+            #[cfg(feature = "std")]
             if verbose {
                 eprintln!("sufcheck: {msg}");
             }
@@ -104,6 +114,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError
                 i,
                 sa[i]
             );
+            #[cfg(feature = "std")]
             if verbose {
                 eprintln!("sufcheck: {msg}");
             }
@@ -118,6 +129,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], verbose: bool) -> Result<(), SufCheckError
         }
     }
 
+    #[cfg(feature = "std")]
     if verbose {
         eprintln!("sufcheck: Done.");
     }

@@ -39,6 +39,9 @@ jobs:
       - name: Run cargo test
         run: cargo test --release
 
+      - name: Run cargo test (no_std)
+        run: cargo test --release --no-default-features
+
   coverage:
     runs-on: ubuntu-latest
     steps:
