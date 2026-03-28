@@ -12,13 +12,15 @@ push = true
 publish = false
 
 [features]
+default = ["std"]
+std = ["rayon"]
 # Enable C libdivsufsort FFI for the bench_compare benchmark.
 # Requires the vendor/libdivsufsort git submodule to be checked out.
 # Usage: cargo bench --bench bench_compare --features c-bench
-c-bench = []
+c-bench = ["std"]
 
 [dependencies]
-rayon = "1"
+rayon = { version = "1", optional = true }
 
 [build-dependencies]
 cc = "1"

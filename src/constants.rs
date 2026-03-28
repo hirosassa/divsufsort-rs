@@ -52,7 +52,7 @@ impl<T: Copy + Default, const N: usize> FixedStack<T, N> {
     }
 }
 
-impl<T: Copy + Default, const N: usize> std::ops::Index<usize> for FixedStack<T, N> {
+impl<T: Copy + Default, const N: usize> core::ops::Index<usize> for FixedStack<T, N> {
     type Output = T;
     #[inline(always)]
     fn index(&self, idx: usize) -> &T {
@@ -60,7 +60,7 @@ impl<T: Copy + Default, const N: usize> std::ops::Index<usize> for FixedStack<T,
     }
 }
 
-impl<T: Copy + Default, const N: usize> std::ops::IndexMut<usize> for FixedStack<T, N> {
+impl<T: Copy + Default, const N: usize> core::ops::IndexMut<usize> for FixedStack<T, N> {
     #[inline(always)]
     fn index_mut(&mut self, idx: usize) -> &mut T {
         &mut self.data[idx]
