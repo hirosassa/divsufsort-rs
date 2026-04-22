@@ -24,6 +24,4 @@ fn main() {
         println!("cargo:rerun-if-changed=vendor/include");
         println!("cargo:rerun-if-changed=vendor/libdivsufsort");
     }
-
-    println!("cargo:rerun-if-changed=build.rs");
 }
