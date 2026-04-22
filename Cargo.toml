@@ -3,6 +3,7 @@ name = "divsufsort-rs"
 version = "0.6.0"
 edition = "2024"
 description = "Pure Rust port of libdivsufsort suffix array construction library"
+repository = "https://github.com/hirosassa/divsufsort-rs"
 license = "MIT"
 
 [package.metadata.release]
