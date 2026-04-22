@@ -13,18 +13,25 @@ Constructs the **suffix array** of a byte string in O(n log n) time and 5n + O(1
 
 The implementation closely follows [the original C library](https://github.com/y-256/libdivsufsort) by Yuta Mori.
 
-The B\*-bucket sorting step is parallelised with [rayon](https://github.com/rayon-rs/rayon) when the `std` feature is enabled (default).
+The B\*-bucket sorting step is parallelised with [rayon](https://github.com/rayon-rs/rayon) when the `rayon` feature is enabled (default).
 
 ### `no_std` support
 
-This crate supports `no_std` environments (with `alloc`). Disable the default `std` feature:
+This crate supports `no_std` environments (with `alloc`). Disable the default features:
 
 ```toml
 [dependencies]
 divsufsort-rs = { version = "...", default-features = false }
 ```
 
-When `std` is disabled, rayon parallelism is unavailable and B\*-bucket sorting runs sequentially.
+If you want `std` without Rayon, enable only `std`:
+
+```toml
+[dependencies]
+divsufsort-rs = { version = "...", default-features = false, features = ["std"] }
+```
+
+When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
 > [!IMPORTANT]
 > This crate uses `unsafe` Rust internally for performance. Specifically, raw pointer aliasing is used to allow the suffix array and its read-only PA view to share the same allocation (mirroring the original C code), and bounds checks are elided in hot inner loops where invariants can be proven statically. The public API is fully safe.
@@ -91,11 +98,11 @@ Compared against the original **C libdivsufsort** compiled at `-O3`.
 
 The parallel B\*-bucket sort drives the speedup for `random_binary` and `text_26`. For `fibonacci` the input produces only 1–2 non-trivial buckets, so parallelism provides no benefit and C is slightly faster due to lower single-thread overhead.
 
-### Results — `std` (parallel) vs `no_std` (serial)
+### Results — `rayon` (parallel) vs serial
 
-Shows the effect of rayon parallelism. `std` is the default; `no_std` disables rayon and runs single-threaded.
+Shows the effect of rayon parallelism. The default feature set includes both `std` and `rayon`; disabling default features runs the serial path.
 
-| Corpus | Size | `std` (rayon) | `no_std` (serial) | Ratio |
+| Corpus | Size | `rayon` | serial | Ratio |
 |---|---|---|---|---|
 | random_binary | 100K | 1.29 ms | 1.44 ms | 1.12× |
 | random_binary | 1M | 11.8 ms | 17.8 ms | **1.51×** |
@@ -117,8 +124,11 @@ cargo bench --bench bench_compare --features c-bench
 # Lightweight benchmark — 3 corpora × 2 sizes, completes in ~2–3 minutes (bench_light)
 cargo bench --bench bench_light
 
-# Same benchmark in no_std (serial) mode
+# Same benchmark in serial mode (`no_std` + no Rayon)
 cargo bench --bench bench_light --no-default-features
+
+# Same benchmark with `std` but without Rayon
+cargo bench --bench bench_light --no-default-features --features std
 
 # Full benchmark — larger sizes and more corpora, takes significantly longer (bench)
 cargo bench --bench bench
