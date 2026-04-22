@@ -38,7 +38,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
     if n == 0 {
         #[cfg(feature = "std")]
         if verbose {
-            eprintln!("sufcheck: Done.");
+            std::eprintln!("sufcheck: Done.");
         }
         return Ok(());
     }
@@ -47,7 +47,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
         let msg = format!("SA length {} != T length {}", sa.len(), n);
         #[cfg(feature = "std")]
         if verbose {
-            eprintln!("sufcheck: {msg}");
+            std::eprintln!("sufcheck: {msg}");
         }
         return Err(SufCheckError { message: msg });
     }
@@ -57,7 +57,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
             let msg = format!("Out of the range [0,{}]. SA[{}]={}", n - 1, i, s);
             #[cfg(feature = "std")]
             if verbose {
-                eprintln!("sufcheck: {msg}");
+                std::eprintln!("sufcheck: {msg}");
             }
             return Err(SufCheckError { message: msg });
         }
@@ -76,7 +76,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
             );
             #[cfg(feature = "std")]
             if verbose {
-                eprintln!("sufcheck: {msg}");
+                std::eprintln!("sufcheck: {msg}");
             }
             return Err(SufCheckError { message: msg });
         }
@@ -116,7 +116,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
             );
             #[cfg(feature = "std")]
             if verbose {
-                eprintln!("sufcheck: {msg}");
+                std::eprintln!("sufcheck: {msg}");
             }
             return Err(SufCheckError { message: msg });
         }
@@ -131,7 +131,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
 
     #[cfg(feature = "std")]
     if verbose {
-        eprintln!("sufcheck: Done.");
+        std::eprintln!("sufcheck: Done.");
     }
     Ok(())
 }

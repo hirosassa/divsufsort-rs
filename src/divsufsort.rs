@@ -11,7 +11,7 @@ use crate::DivSufSortError;
 use crate::constants::{ALPHABET_SIZE, BUCKET_A_SIZE, BUCKET_B_SIZE};
 use crate::sssort::{SsortCtx, sssort};
 use crate::trsort::trsort;
-#[cfg(feature = "std")]
+#[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
 #[inline(always)]
@@ -310,9 +310,9 @@ fn sort_typebstar(
             // usize is Copy + Send + Sync; we cast back to *mut i32 inside each thread.
             let sa_addr: usize = sa.as_mut_ptr() as usize;
             let n1 = n + 1;
-            #[cfg(feature = "std")]
+            #[cfg(feature = "rayon")]
             let iter = jobs.par_iter();
-            #[cfg(not(feature = "std"))]
+            #[cfg(not(feature = "rayon"))]
             let iter = jobs.iter();
             iter.for_each(|&(i_val, j_val, lastsuffix)| {
                 let sa_ptr = sa_addr as *mut i32;
