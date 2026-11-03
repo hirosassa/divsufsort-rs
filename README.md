@@ -33,6 +33,13 @@ divsufsort-rs = { version = "...", default-features = false, features = ["std"] 
 
 When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
+> [!NOTE]
+> In the next release, the `std` feature no longer enables rayon. If you previously depended on `std` for parallelism and disabled default features, enable the `rayon` feature explicitly (it implies `std`):
+>
+> ```toml
+> divsufsort-rs = { version = "...", default-features = false, features = ["rayon"] }
+> ```
+
 > [!IMPORTANT]
 > This crate uses `unsafe` Rust internally for performance. Specifically, raw pointer aliasing is used to allow the suffix array and its read-only PA view to share the same allocation (mirroring the original C code), and bounds checks are elided in hot inner loops where invariants can be proven statically. The public API is fully safe.
 
