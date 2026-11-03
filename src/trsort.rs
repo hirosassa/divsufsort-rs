@@ -24,7 +24,7 @@ fn tr_ilg(n: i32) -> i32 {
 
 /// Insertion sort for small ranges, skipping negative group markers during shifts.
 #[inline]
-fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
+const fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
     // C: for(a = first + 1; a < last; ++a) {
     //      for(t = *a, b = a - 1; 0 > (r = ISAd[t] - ISAd[*b]);) {
     //        do { *(b + 1) = *b; } while((first <= --b) && (*b < 0));
@@ -65,7 +65,7 @@ fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
 
 // first is the absolute index of the heap root.
 // child node absolute index: j = 2*(i - first) + 1 + first = 2*i - first + 1
-fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, size: usize) {
+const fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, size: usize) {
     let v = sa[i];
     let c = isad[v as usize];
     loop {
@@ -97,7 +97,7 @@ fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, size: us
 }
 
 /// Heapsort fallback for `tr_introsort` when the recursion limit is exhausted.
-fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
+const fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
     let mut m = size;
     if size.is_multiple_of(2) {
         m -= 1;
@@ -130,7 +130,13 @@ fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
 }
 
 #[inline(always)]
-fn tr_median3_idx(isad: &[i32], sa: &[i32], mut v1: usize, mut v2: usize, v3: usize) -> usize {
+const fn tr_median3_idx(
+    isad: &[i32],
+    sa: &[i32],
+    mut v1: usize,
+    mut v2: usize,
+    v3: usize,
+) -> usize {
     if isad[sa[v1] as usize] > isad[sa[v2] as usize] {
         core::mem::swap(&mut v1, &mut v2);
     }
@@ -145,7 +151,7 @@ fn tr_median3_idx(isad: &[i32], sa: &[i32], mut v1: usize, mut v2: usize, v3: us
 }
 
 #[inline(always)]
-fn tr_median5_idx(
+const fn tr_median5_idx(
     isad: &[i32],
     sa: &[i32],
     mut v1: usize,
@@ -179,7 +185,7 @@ fn tr_median5_idx(
 }
 
 /// Selects a pivot index using median-of-3 or median-of-5 depending on range size.
-fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> usize {
+const fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> usize {
     let t = (last - first) as i32;
     let middle = first + (t / 2) as usize;
     if t <= 512 {
@@ -368,7 +374,7 @@ fn tr_partition(
 
 /// Copies sorted suffix positions from sa[a..b) back into the full range sa[first..last),
 /// updating ISA group labels.
-fn tr_copy(
+const fn tr_copy(
     isa: &mut [i32],
     sa: &mut [i32],
     first: usize,
@@ -418,7 +424,7 @@ fn tr_copy(
 
 /// Partial copy variant of `tr_copy`, used when budget is exhausted (trlink == -1).
 /// Creates new equal-group runs where exact ordering could not be determined.
-fn tr_partialcopy(
+const fn tr_partialcopy(
     isa: &mut [i32],
     sa: &mut [i32],
     first: usize,

@@ -15,31 +15,31 @@ use crate::trsort::trsort;
 use rayon::prelude::*;
 
 #[inline(always)]
-fn bucket_a(ba: &[i32], c0: usize) -> i32 {
+const fn bucket_a(ba: &[i32], c0: usize) -> i32 {
     ba[c0]
 }
 #[inline(always)]
-fn bucket_a_mut(ba: &mut [i32], c0: usize) -> &mut i32 {
+const fn bucket_a_mut(ba: &mut [i32], c0: usize) -> &mut i32 {
     &mut ba[c0]
 }
 
 /// BUCKET_B(c0, c1) = bucket_B[(c1 << 8) | c0]
 #[inline(always)]
-fn bucket_b(bb: &[i32], c0: usize, c1: usize) -> i32 {
+const fn bucket_b(bb: &[i32], c0: usize, c1: usize) -> i32 {
     bb[(c1 << 8) | c0]
 }
 #[inline(always)]
-fn bucket_b_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+const fn bucket_b_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
     &mut bb[(c1 << 8) | c0]
 }
 
 /// BUCKET_BSTAR(c0, c1) = bucket_B[(c0 << 8) | c1]
 #[inline(always)]
-fn bucket_bstar(bb: &[i32], c0: usize, c1: usize) -> i32 {
+const fn bucket_bstar(bb: &[i32], c0: usize, c1: usize) -> i32 {
     bb[(c0 << 8) | c1]
 }
 #[inline(always)]
-fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+const fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
     &mut bb[(c0 << 8) | c1]
 }
 
@@ -102,7 +102,7 @@ fn count_and_classify_suffixes(
 /// Builds the inverse suffix array (ISA) from sorted B*-suffixes.
 /// Processes sa[0..m] and writes group labels into sa[isab..isab+m].
 #[inline(always)]
-fn build_isa_from_sorted_bstar(sa: &mut [i32], isab: usize, m: usize) {
+const fn build_isa_from_sorted_bstar(sa: &mut [i32], isab: usize, m: usize) {
     let mut i = m as isize - 1;
     while 0 <= i {
         if sa[i as usize] >= 0 {
@@ -138,7 +138,7 @@ fn build_isa_from_sorted_bstar(sa: &mut [i32], isab: usize, m: usize) {
 /// Scatters sorted B*-suffix positions back to their text positions.
 /// Reads ranks from sa[isab..] and writes text positions into sa[rank].
 #[inline(always)]
-fn scatter_bstar_to_sa(t: &[u8], sa: &mut [i32], isab: usize, n: usize, m: usize) {
+const fn scatter_bstar_to_sa(t: &[u8], sa: &mut [i32], isab: usize, n: usize, m: usize) {
     let mut i = n as isize - 1;
     let mut j_val = m;
     let mut c0 = t[n - 1] as usize;
