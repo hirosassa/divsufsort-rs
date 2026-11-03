@@ -2,7 +2,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use divsufsort_rs::divsufsort;
 
 // Simple LCG for deterministic pseudo-random generation without external deps.
-fn lcg_next(seed: &mut u64) -> u8 {
+const fn lcg_next(seed: &mut u64) -> u8 {
     *seed = seed
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);
@@ -51,10 +51,12 @@ fn corpus_fibonacci(size: usize) -> Vec<u8> {
     s1
 }
 
+type Corpus = (&'static str, fn(usize) -> Vec<u8>);
+
 fn bench_divsufsort(c: &mut Criterion) {
     const SIZES: &[usize] = &[100_000, 1_000_000, 10_000_000];
 
-    let corpora: &[(&str, fn(usize) -> Vec<u8>)] = &[
+    let corpora: &[Corpus] = &[
         ("random_binary", corpus_random_binary),
         ("text_26", corpus_text),
         ("repetitive", corpus_repetitive),

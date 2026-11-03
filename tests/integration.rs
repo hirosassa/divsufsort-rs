@@ -1,7 +1,7 @@
 use divsufsort_rs::{divbwt, divsufsort, inverse_bw_transform, sufcheck};
 
 // Deterministic pseudo-random number generator using a simple LCG
-fn lcg_next(state: &mut u64) -> u8 {
+const fn lcg_next(state: &mut u64) -> u8 {
     *state = state
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);
