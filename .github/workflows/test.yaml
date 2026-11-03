@@ -45,6 +45,17 @@ jobs:
       - name: Run cargo test (std without rayon)
         run: cargo test --release --no-default-features --features std
 
+  scripts:
+    name: Test release scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Run bats
+        run: |
+          sudo apt-get install -y --no-install-recommends bats
+          bats scripts/tests
+
   coverage:
     runs-on: ubuntu-latest
     steps:

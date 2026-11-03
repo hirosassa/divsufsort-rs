@@ -140,3 +140,9 @@ cargo bench --bench bench_light --no-default-features --features std
 # Full benchmark — larger sizes and more corpora, takes significantly longer (bench)
 cargo bench --bench bench
 ```
+
+## Releasing
+
+1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the link references at the bottom.
+2. Run `cargo release <level> --execute` to bump the version in `Cargo.toml`, commit, tag `vx.y.z` and push.
+3. The `release` workflow validates that the tag matches `Cargo.toml` and that `CHANGELOG.md` has notes for the version, publishes to crates.io, and creates a GitHub Release whose body is that CHANGELOG section.
