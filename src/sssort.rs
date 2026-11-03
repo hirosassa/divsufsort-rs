@@ -804,8 +804,12 @@ fn ss_inplacemerge(
         }
         last -= 1;
         if x != 0 {
-            while sa[last - 1] < 0 {
+            // C: `while (*--last < 0) {}` — decrement first, then read.
+            loop {
                 last -= 1;
+                if sa[last] >= 0 {
+                    break;
+                }
             }
         }
         if middle == last {
@@ -1347,15 +1351,18 @@ pub fn sssort(
         first += 1;
     }
 
-    let (middle, limit, bufsize, buf) =
-        if (bufsize as usize) < SS_BLOCKSIZE && (bufsize as usize) < last - first {
-            let limit = ss_isqrt((last - first) as i32);
-            let limit = limit.min(SS_BLOCKSIZE as i32);
-            let middle = last - limit as usize;
-            (middle, limit, limit, middle)
-        } else {
-            (last, 0i32, bufsize, buf)
-        };
+    // C: borrow the tail of the range as a buffer only if the caller's buffer is smaller
+    // than both SS_BLOCKSIZE and isqrt(last - first).
+    let borrow_limit = if (bufsize as usize) < SS_BLOCKSIZE && (bufsize as usize) < last - first {
+        let isqrt = ss_isqrt((last - first) as i32);
+        (bufsize < isqrt).then(|| isqrt.min(SS_BLOCKSIZE as i32))
+    } else {
+        None
+    };
+    let (middle, limit, bufsize, buf) = borrow_limit.map_or((last, 0i32, bufsize, buf), |limit| {
+        let middle = last - limit as usize;
+        (middle, limit, limit, middle)
+    });
 
     let mut a = first;
     let mut i = 0usize;
@@ -1445,6 +1452,28 @@ pub fn sssort(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Expected values come from running the vendored C `ss_inplacemerge` on the same input.
+    // With every window equal, the merge hits the `x != 0` path, where C skips back over the
+    // flagged (negative) entries with `while (*--last < 0)`, ending *on* the first unflagged
+    // entry and excluding it from the next round.
+    #[test]
+    fn test_ss_inplacemerge_skips_flagged_group_like_c() {
+        let t = [b'a'; 11];
+        let pa = [0, 1, 2, 3, 5, 7, 8, 9];
+        let mut sa = [-3, 6, -6, -1, 1, -5, 3];
+        ss_inplacemerge(&t, &pa, &mut sa, 0, 2, 7, 0);
+        assert_eq!(sa, [-6, -1, 2, 6, 1, -5, 3]);
+    }
+
+    #[test]
+    fn test_ss_inplacemerge_skips_flagged_group_like_c_2() {
+        let t = [b'a'; 12];
+        let pa = [0, 1, 2, 3, 4, 6, 8, 9, 10];
+        let mut sa = [-3, 3, -7, -1, -2, 7, -6, 4];
+        ss_inplacemerge(&t, &pa, &mut sa, 0, 2, 8, 0);
+        assert_eq!(sa, [-7, -1, -2, 2, 3, 7, -6, 4]);
+    }
 
     #[test]
     fn test_ss_ilg() {
