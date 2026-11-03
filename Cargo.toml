@@ -3,6 +3,7 @@ name = "divsufsort-rs"
 version = "0.6.0"
 edition = "2024"
 description = "Pure Rust port of libdivsufsort suffix array construction library"
+repository = "https://github.com/hirosassa/divsufsort-rs"
 license = "MIT"
 
 [package.metadata.release]
@@ -12,18 +13,19 @@ push = true
 publish = false
 
 [features]
-default = ["std"]
-std = ["rayon"]
+default = ["std", "rayon"]
+std = []
+rayon = ["dep:rayon", "std"]
 # Enable C libdivsufsort FFI for the bench_compare benchmark.
 # Requires the vendor/libdivsufsort git submodule to be checked out.
 # Usage: cargo bench --bench bench_compare --features c-bench
-c-bench = ["std"]
+c-bench = ["dep:cc", "std"]
 
 [dependencies]
 rayon = { version = "1", optional = true }
 
 [build-dependencies]
-cc = "1"
+cc = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

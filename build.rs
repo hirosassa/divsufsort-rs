@@ -1,7 +1,8 @@
 fn main() {
     // C compilation is only needed for the bench_compare benchmark (--features c-bench).
     // The vendor/libdivsufsort git submodule must be checked out when this feature is active.
-    if std::env::var("CARGO_FEATURE_C_BENCH").is_ok() {
+    #[cfg(feature = "c-bench")]
+    {
         cc::Build::new()
             .files([
                 "vendor/libdivsufsort/lib/divsufsort.c",
@@ -23,6 +24,4 @@ fn main() {
         println!("cargo:rerun-if-changed=vendor/include");
         println!("cargo:rerun-if-changed=vendor/libdivsufsort");
     }
-
-    println!("cargo:rerun-if-changed=build.rs");
 }
