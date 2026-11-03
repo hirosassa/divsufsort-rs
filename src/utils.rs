@@ -161,7 +161,11 @@ const fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
 /// # Errors
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a provided
-/// `sa` is shorter than `t`.
+/// `sa` is shorter than `t`, has an entry outside `0..t.len()`, or does not contain exactly
+/// one `0` in its first `t.len()` entries.
+///
+/// A provided `sa` is not checked to be a permutation (use [`sufcheck`] for that). If it is
+/// not a valid suffix array of `t`, the output is unspecified, but the call does not panic.
 pub fn bw_transform(
     t: &[u8],
     u: &mut [u8],
@@ -190,6 +194,19 @@ pub fn bw_transform(
             *idx = primary_idx;
         }
         Some(a) => {
+            // Reject entries that would index outside `t` and make sure the scan below
+            // stops at the single zero entry instead of running past the end of `a`.
+            let mut zeros = 0usize;
+            for &v in &a[..n] {
+                if usize::try_from(v).map_or(true, |v| v >= n) {
+                    return Err(DivSufSortError::InvalidArgument);
+                }
+                zeros += usize::from(v == 0);
+            }
+            if zeros != 1 {
+                return Err(DivSufSortError::InvalidArgument);
+            }
+
             // T != U case (straightforward implementation)
             u[0] = t[n - 1];
             let mut i = 0usize;
@@ -614,6 +631,67 @@ mod tests {
             bw_transform(b"banana", &mut u, Some(&mut sa), &mut idx),
             Err(DivSufSortError::InvalidArgument)
         );
+    }
+
+    fn bw_transform_with_sa(sa: &mut [i32]) -> Result<(), DivSufSortError> {
+        let mut u = vec![0u8; 6];
+        let mut idx = 0;
+        bw_transform(b"banana", &mut u, Some(sa), &mut idx)
+    }
+
+    #[test]
+    fn test_bw_transform_sa_without_zero_is_invalid_argument() {
+        let mut sa = [5, 3, 1, 1, 4, 2];
+        assert_eq!(
+            bw_transform_with_sa(&mut sa),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_bw_transform_sa_with_negative_entry_is_invalid_argument() {
+        let mut sa = [5, 3, 1, 0, -4, 2];
+        assert_eq!(
+            bw_transform_with_sa(&mut sa),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_bw_transform_sa_with_out_of_range_entry_is_invalid_argument() {
+        let mut sa = [5, 3, 1, 0, 6, 2];
+        assert_eq!(
+            bw_transform_with_sa(&mut sa),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_bw_transform_sa_with_two_zeros_is_invalid_argument() {
+        let mut sa = [5, 3, 0, 0, 4, 2];
+        assert_eq!(
+            bw_transform_with_sa(&mut sa),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_bw_transform_non_permutation_sa_does_not_panic() {
+        // In range with exactly one zero, but not a permutation: output is unspecified.
+        let mut sa = [0, 1, 1, 1, 1, 1];
+        assert_eq!(bw_transform_with_sa(&mut sa), Ok(()));
+    }
+
+    #[test]
+    fn test_bw_transform_longer_sa_ignores_the_tail() {
+        let mut sa = [5, 3, 1, 0, 4, 2, 0, -1];
+        let mut u = vec![0u8; 6];
+        let mut idx = 0;
+        assert_eq!(
+            bw_transform(b"banana", &mut u, Some(&mut sa), &mut idx),
+            Ok(())
+        );
+        assert_eq!((&u[..], idx), (&b"annbaa"[..], 4));
     }
 
     #[test]
