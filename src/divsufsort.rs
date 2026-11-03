@@ -307,38 +307,40 @@ fn sort_typebstar(
 
         // Phase 2: execute bucket sorts in parallel.
         //
-        // SAFETY: Safety invariants that make the raw-pointer aliasing sound:
-        //   • Each job's sort range [i_val..j) is a disjoint subrange of sa[0..m].
-        //     The ranges tile sa[0..m] without overlap (j of job k == i_val of job k−1).
-        //   • sssort is called with bufsize=0, so it uses the tail of each job's own
-        //     sort range [middle..j) as its merge buffer (middle = j − sqrt(j−i_val)).
-        //     This buffer region is also within the job's exclusive [i_val..j) range.
-        //   • pa = sa[pab..n] = sa[n−m..n] is read-only during sssort.
-        //     Because m ≤ n/2, pab = n−m ≥ m, so [0..m) and [n−m..n) are disjoint.
-        //   • A probe one past the end of PA (index n) is answered by `pa_val` without
-        //     reading memory, so no sentinel element is needed.
-        //   • t is read-only throughout, satisfying Send + Sync for the closure.
+        // The jobs' ranges [i_val..j) tile sa[0..m] without overlap, so sa[..m] is split into
+        // one exclusive `&mut` chunk per job. PA = sa[pab..n] lies in sa[m..] (m <= n/2, so
+        // pab = n - m >= m) and is only read, so it is shared as `sa_right`. sssort uses
+        // bufsize=0, i.e. the tail of each job's own chunk as its merge buffer.
         {
-            // Convert the raw pointer to usize so that the closure is Send + Sync.
-            // usize is Copy + Send + Sync; we cast back to *mut i32 inside each thread.
-            let sa_addr: usize = sa.as_mut_ptr() as usize;
-            let len = sa.len();
+            let (sa_left, sa_right) = sa.split_at_mut(m);
+            let sa_right: &[i32] = sa_right;
+            let ctx = SsortCtx {
+                t,
+                pa: sa_right,
+                pab: pab - m,
+                depth: 2,
+                n: n as i32,
+            };
+
+            // `jobs` is ordered by descending position; split from the left end instead.
+            let mut chunks: Vec<(&mut [i32], bool)> = Vec::with_capacity(jobs.len());
+            let mut rest = sa_left;
+            let mut consumed = 0usize;
+            for &(i_val, j_val, lastsuffix) in jobs.iter().rev() {
+                let (_, tail) = core::mem::take(&mut rest).split_at_mut(i_val - consumed);
+                let (chunk, tail) = tail.split_at_mut(j_val - i_val);
+                chunks.push((chunk, lastsuffix));
+                rest = tail;
+                consumed = j_val;
+            }
+
             #[cfg(feature = "rayon")]
-            let iter = jobs.par_iter();
+            let iter = chunks.par_iter_mut();
             #[cfg(not(feature = "rayon"))]
-            let iter = jobs.iter();
-            iter.for_each(|&(i_val, j_val, lastsuffix)| {
-                let sa_ptr = sa_addr as *mut i32;
-                let sa_local = unsafe { core::slice::from_raw_parts_mut(sa_ptr, len) };
-                let pa_local = unsafe { core::slice::from_raw_parts(sa_ptr as *const i32, len) };
-                let ctx = SsortCtx {
-                    t,
-                    pa: pa_local,
-                    pab,
-                    depth: 2,
-                    n: n as i32,
-                };
-                sssort(&ctx, sa_local, i_val, j_val, 0, 0, lastsuffix);
+            let iter = chunks.iter_mut();
+            iter.for_each(|(chunk, lastsuffix)| {
+                let len = chunk.len();
+                sssort(&ctx, chunk, 0, len, 0, 0, *lastsuffix);
             });
         }
 
