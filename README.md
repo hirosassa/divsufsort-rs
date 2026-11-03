@@ -41,13 +41,13 @@ When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 > ```
 
 > [!IMPORTANT]
-> This crate uses `unsafe` Rust internally for performance. Specifically, raw pointer aliasing is used to allow the suffix array and its read-only PA view to share the same allocation (mirroring the original C code), and bounds checks are elided in hot inner loops where invariants can be proven statically. The public API is fully safe.
+> This crate keeps `unsafe` to a minimum. Outside the `c-bench` FFI, it is limited to two shared reborrows of the `isa` slice in `trsort`. The parallel B\*-bucket sort is safe code: the suffix array is split into disjoint `&mut` chunks (`split_at_mut`), and hot loops avoid bounds checks through fixed-size bucket tables. The public API is fully safe.
 
 ## Usage
 
 ```toml
 [dependencies]
-divsufsort-rs = "0.4"
+divsufsort-rs = "0.6"
 ```
 
 ```rust
@@ -57,8 +57,8 @@ fn main() {
     let text = b"banana";
     let mut sa = vec![0i32; text.len()];
     divsufsort(text, &mut sa).unwrap();
-    // sa == [5, 3, 1, 0, 4, 2]  (indices of sorted suffixes)
-    println!("{:?}", sa);
+    // indices of sorted suffixes
+    assert_eq!(sa, [5, 3, 1, 0, 4, 2]);
 }
 ```
 
@@ -70,7 +70,8 @@ use divsufsort_rs::divbwt;
 let text = b"banana";
 let mut bwt = vec![0u8; text.len()];
 let primary_index = divbwt(text, &mut bwt, None).unwrap();
-// bwt == b"nnbaaa", primary_index == 3
+assert_eq!(&bwt, b"annbaa");
+assert_eq!(primary_index, 4);
 ```
 
 ## Benchmark
@@ -92,6 +93,7 @@ Benchmarks run with [criterion](https://github.com/bheisler/criterion.rs) (`samp
 | `random_binary` | LCG pseudo-random bytes (alphabet size 256) |
 | `text_26` | LCG pseudo-random lowercase ASCII (alphabet size 26) |
 | `fibonacci` | Fibonacci string over `{a, b}` (highly repetitive) |
+| `repeat` | A short English sentence repeated (periodic input; `bench_light` only) |
 
 ### Results — Rust vs C libdivsufsort (1,000,000 bytes)
 
@@ -128,7 +130,7 @@ For corpora with many distinct B\*-buckets (`random_binary`, `text_26`), rayon p
 git submodule update --init
 cargo bench --bench bench_compare --features c-bench
 
-# Lightweight benchmark — 3 corpora × 2 sizes, completes in ~2–3 minutes (bench_light)
+# Lightweight benchmark — 4 corpora × 4 sizes (1K–1M) plus a divbwt group (bench_light)
 cargo bench --bench bench_light
 
 # Same benchmark in serial mode (`no_std` + no Rayon)

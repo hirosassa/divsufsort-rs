@@ -18,6 +18,11 @@ pub use utils::{
     SufCheckError, bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck,
 };
 
+/// Runs the Rust code blocks in the README as doctests so the examples cannot drift.
+#[cfg(all(doctest, feature = "std"))]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
+
 /// Errors returned by the public API of this crate.
 #[derive(Debug, PartialEq, Eq)]
 pub enum DivSufSortError {

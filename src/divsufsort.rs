@@ -524,7 +524,7 @@ fn construct_bwt(
     orig
 }
 
-/// Constructs the suffix array of `t` in O(n) time using the induced-sorting algorithm.
+/// Constructs the suffix array of `t` in O(n log n) time using the induced-sorting algorithm.
 ///
 /// On success, `sa[i]` holds the starting position of the `i`-th lexicographically
 /// smallest suffix of `t`.
@@ -560,7 +560,7 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
     Ok(())
 }
 
-/// Constructs the Burrows-Wheeler Transform (BWT) of `t` in O(n) time.
+/// Constructs the Burrows-Wheeler Transform (BWT) of `t` in O(n log n) time.
 ///
 /// The BWT is written into `u`. The returned value is the primary index (1-based position
 /// of the original string's last character in the BWT output), which is needed to invert
@@ -572,6 +572,10 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
 /// # Errors
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if a provided `a` buffer is too short.
+///
+/// # Panics
+///
+/// Panics if `u.len() < t.len()`.
 pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivSufSortError> {
     let n = t.len();
     if n == 0 {

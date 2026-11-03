@@ -12,9 +12,10 @@ use crate::constants::{
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
 /// In C: `PA[idx]` = `SA[pab + idx]`, even when idx is negative (equal-group markers).
 ///
-/// `pa` is the whole SA buffer of length n. A probe one past the end (`abs == n`, the
-/// `ss_partition` boundary look-ahead of the last B*-suffix) reads as 0, which is what
-/// the former zero sentinel `sa[n]` provided; it never touches memory outside `pa`.
+/// `pa` is the read-only slice `sa[m..]` and `pab` is the offset of PAb within it. A probe
+/// past the end of `pa` (the `ss_partition` boundary look-ahead of the last B*-suffix)
+/// reads as 0, which is what the zero sentinel `sa[n]` provides in C; it never touches
+/// memory outside `pa`.
 #[inline(always)]
 fn pa_val(pa: &[i32], pab: usize, idx: i32) -> i32 {
     let abs = (pab as i64 + idx as i64) as usize;
@@ -312,7 +313,7 @@ fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, las
 }
 
 /// Partitions [first..last) into two parts and returns the boundary index.
-/// pa is the full SA snapshot; pab is the PAb offset (PA = SA[pab..]).
+/// `pa` is the read-only slice `sa[m..]`; `pab` is the offset of PAb within it.
 #[inline]
 fn ss_partition(
     pa: &[i32],
@@ -746,8 +747,6 @@ fn ss_blockswap(sa: &mut [i32], a: usize, b: usize, n: usize) {
 }
 
 fn ss_rotate(sa: &mut [i32], first: usize, middle: usize, last: usize) {
-    // Implements the rotation using the same algorithm as C (gcd-based in-place rotation)
-    // Simpler: use std rotate equivalent
     sa[first..last].rotate_left(middle - first);
 }
 
@@ -1323,9 +1322,10 @@ const fn merge_check(
 /// Context for the B*-suffix sort, holding read-only references to text and PA array.
 pub struct SsortCtx<'a> {
     pub t: &'a [u8],
-    /// Full SA snapshot (sa[0..n+1]). PA = pa[pab..], i.e. pa[pab + i] = PAb[i].
+    /// Read-only right-hand part of the suffix array (`sa[m..]`), which holds PAb.
+    /// `pa[pab + i]` = PAb[i].
     pub pa: &'a [i32],
-    /// Offset of PAb within pa (= n - m, number of B*-suffixes from the end).
+    /// Offset of PAb within `pa` (= n - 2m, since PAb starts at `sa[n - m]`).
     pub pab: usize,
     pub depth: Depth,
     pub n: i32,
