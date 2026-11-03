@@ -34,7 +34,7 @@ divsufsort-rs = { version = "...", default-features = false, features = ["std"] 
 When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
 > [!NOTE]
-> In the next release, the `std` feature no longer enables rayon. If you previously depended on `std` for parallelism and disabled default features, enable the `rayon` feature explicitly (it implies `std`):
+> Since 0.7.0, the `std` feature no longer enables rayon. If you previously depended on `std` for parallelism and disabled default features, enable the `rayon` feature explicitly (it implies `std`):
 >
 > ```toml
 > divsufsort-rs = { version = "...", default-features = false, features = ["rayon"] }
@@ -47,7 +47,7 @@ When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
 ```toml
 [dependencies]
-divsufsort-rs = "0.6"
+divsufsort-rs = "0.7"
 ```
 
 ```rust
@@ -83,8 +83,8 @@ Benchmarks run with [criterion](https://github.com/bheisler/criterion.rs) (`samp
 | Item | Value |
 |---|---|
 | CPU | Apple M4 Max (16 logical cores) |
-| OS | macOS 15.5 |
-| Rust | 1.92.0 |
+| OS | macOS 26.7.1 |
+| Rust | 1.99.1 |
 
 ### Corpora
 
@@ -101,9 +101,9 @@ Compared against the original **C libdivsufsort** compiled at `-O3`.
 
 | Corpus | Rust (this crate) | C libdivsufsort | Ratio |
 |---|---|---|---|
-| random_binary | 11.2 ms (84.9 MiB/s) | 13.7 ms (69.4 MiB/s) | **1.22× faster** |
-| text_26 | 13.2 ms (72.4 MiB/s) | 23.8 ms (40.1 MiB/s) | **1.80× faster** |
-| fibonacci | 30.1 ms (31.7 MiB/s) | 27.4 ms (34.8 MiB/s) | 0.91× |
+| random_binary | 10.4 ms (91.3 MiB/s) | 13.3 ms (71.5 MiB/s) | **1.28× faster** |
+| text_26 | 12.3 ms (77.6 MiB/s) | 22.7 ms (42.1 MiB/s) | **1.85× faster** |
+| fibonacci | 28.9 ms (33.0 MiB/s) | 26.9 ms (35.4 MiB/s) | 0.93× |
 
 The parallel B\*-bucket sort drives the speedup for `random_binary` and `text_26`. For `fibonacci` the input produces only 1–2 non-trivial buckets, so parallelism provides no benefit and C is slightly faster due to lower single-thread overhead.
 
@@ -113,14 +113,14 @@ Shows the effect of rayon parallelism. The default feature set includes both `st
 
 | Corpus | Size | `rayon` | serial | Ratio |
 |---|---|---|---|---|
-| random_binary | 100K | 1.29 ms | 1.44 ms | 1.12× |
-| random_binary | 1M | 11.8 ms | 17.8 ms | **1.51×** |
-| text_26 | 100K | 1.29 ms | 2.07 ms | **1.60×** |
-| text_26 | 1M | 14.0 ms | 28.3 ms | **2.02×** |
-| fibonacci | 100K | 2.53 ms | 2.47 ms | 0.98× |
-| fibonacci | 1M | 31.5 ms | 31.0 ms | 0.98× |
+| random_binary | 100K | 1.21 ms | 1.32 ms | 1.10× |
+| random_binary | 1M | 10.8 ms | 16.9 ms | **1.57×** |
+| text_26 | 100K | 1.20 ms | 1.93 ms | **1.61×** |
+| text_26 | 1M | 13.1 ms | 27.5 ms | **2.10×** |
+| fibonacci | 100K | 2.34 ms | 2.32 ms | 0.99× |
+| fibonacci | 1M | 30.0 ms | 30.0 ms | 1.00× |
 
-For corpora with many distinct B\*-buckets (`random_binary`, `text_26`), rayon parallelism provides 1.5–2× speedup at 1M scale. Highly repetitive inputs (`fibonacci`) show no difference as they produce too few buckets to benefit from parallelism.
+For corpora with many distinct B\*-buckets (`random_binary`, `text_26`), rayon parallelism provides 1.6–2.1× speedup at 1M scale. Highly repetitive inputs (`fibonacci`) show no difference as they produce too few buckets to benefit from parallelism. For small inputs the thread-pool overhead dominates: at 1K bytes, `text_26` takes about 224 µs with `rayon` versus 88 µs serial, so consider disabling the `rayon` feature if you mostly sort small inputs.
 
 ### Running the benchmarks
 
