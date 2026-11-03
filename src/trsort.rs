@@ -1223,4 +1223,27 @@ mod tests {
             assert!(isad[sa[i - 1] as usize] <= isad[sa[i] as usize]);
         }
     }
+
+    // Expected values below follow the C original (trsort.c): the right partition is
+    // filled downwards starting at b - 1.
+    #[test]
+    fn test_tr_copy_fills_slot_before_b() {
+        // depth = 1, middle group = sa[2..4), rank label v = b - 1 = 3.
+        // Suffix 0 is found on the left side, suffix 1 on the right side.
+        let mut isa = [3i32, 3, 5, 5, 5, 5];
+        let mut sa = [1i32, 0, 9, 9, 0, 2];
+        tr_copy(&mut isa, &mut sa, 0, 2, 4, 6, 1);
+        assert_eq!(sa, [1, 0, 0, 1, 0, 2]);
+        assert_eq!(&isa[..2], &[2, 3]);
+    }
+
+    #[test]
+    fn test_tr_partialcopy_fills_slot_before_b() {
+        // Same layout as above but with everything on the right side (first == a).
+        let mut isa = [3i32, 3, 7, 5, 5, 5];
+        let mut sa = [9i32, 9, 9, 9, 1, 2];
+        tr_partialcopy(&mut isa, &mut sa, 2, 2, 4, 6, 1);
+        assert_eq!(&sa[2..4], &[0, 1]);
+        assert_eq!(&isa[..2], &[2, 3]);
+    }
 }
