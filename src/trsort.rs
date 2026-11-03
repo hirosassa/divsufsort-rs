@@ -397,11 +397,11 @@ const fn tr_copy(
         }
         c += 1;
     }
-    // C: for(c = last - 1, e = d + 1, d = b - 1; e < d; --c) { if(...) { *--d = s; ISA[s] = d - SA; } }
-    // C initializes d = b-1 and uses *--d (pre-decrement). Rust e = C's (d+1) from first loop.
-    // C initial check: e < b-1. Rust initial check: e >= d2. So d2 must start at b-1.
+    // C: for(c = last - 1, e = d + 1, d = b; e < d; --c) { if(...) { *--d = s; ISA[s] = d - SA; } }
+    // C starts at d = b and pre-decrements, so the first write lands at b - 1.
+    // Rust e = C's (d+1) from the first loop; the loop continues while e < d2.
     let e = d;
-    let mut d2 = b - 1;
+    let mut d2 = b;
     if last > 0 {
         let mut c2 = last - 1;
         loop {
@@ -469,17 +469,18 @@ const fn tr_partialcopy(
         }
     }
 
-    // C: for(c = last - 1, e = d + 1, d = b - 1; e < d; --c)
-    // C initializes d = b-1 and uses *--d (pre-decrement). Rust e2 = C's (d+1) from first loop.
+    // C: for(c = last - 1, e = d + 1, d = b; e < d; --c)
+    // C starts at d = b and pre-decrements, so the first write lands at b - 1.
+    // Rust e2 = C's (d+1) from the first loop.
     lastrank = -1;
     let e2 = d;
-    let mut d2 = b - 1;
+    let mut d2 = b;
     if last > 0 {
         let mut c2 = last - 1;
         loop {
             if e2 >= d2 {
                 break;
-            } // C condition: e < d (equivalent with d2 = b-1)
+            } // C condition: e < d
             let s = sa[c2] - depth;
             if s >= 0 && isa[s as usize] == v {
                 d2 -= 1;
