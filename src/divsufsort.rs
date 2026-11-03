@@ -571,15 +571,15 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
 ///
 /// # Errors
 ///
-/// Returns [`DivSufSortError::InvalidArgument`] if a provided `a` buffer is too short.
-///
-/// # Panics
-///
-/// Panics if `u.len() < t.len()`.
+/// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a
+/// provided `a` buffer is too short.
 pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivSufSortError> {
     let n = t.len();
     if n == 0 {
         return Ok(0);
+    }
+    if u.len() < n {
+        return Err(DivSufSortError::InvalidArgument);
     }
     if n == 1 {
         u[0] = t[0];
@@ -709,6 +709,31 @@ mod tests {
         // BWT of "banana" = "annbaa", pidx=4
         assert_eq!(&u, b"annbaa");
         assert_eq!(pidx, 4);
+    }
+
+    #[test]
+    fn test_divbwt_short_output_is_invalid_argument() {
+        let mut u = vec![0u8; 5];
+        assert_eq!(
+            divbwt(b"banana", &mut u, None),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_divbwt_single_byte_with_empty_output_is_invalid_argument() {
+        let mut u: [u8; 0] = [];
+        assert_eq!(
+            divbwt(b"a", &mut u, None),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_divbwt_longer_output_is_accepted() {
+        let mut u = vec![0u8; 8];
+        assert_eq!(divbwt(b"banana", &mut u, None), Ok(4));
+        assert_eq!(&u[..6], b"annbaa");
     }
 
     #[test]

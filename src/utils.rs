@@ -160,7 +160,8 @@ const fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
 ///
 /// # Errors
 ///
-/// Returns [`DivSufSortError::InvalidArgument`] if arguments are inconsistent.
+/// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a provided
+/// `sa` is shorter than `t`.
 pub fn bw_transform(
     t: &[u8],
     u: &mut [u8],
@@ -172,6 +173,9 @@ pub fn bw_transform(
     if n == 0 {
         *idx = 0;
         return Ok(());
+    }
+    if u.len() < n || sa.as_ref().is_some_and(|a| a.len() < n) {
+        return Err(DivSufSortError::InvalidArgument);
     }
     if n == 1 {
         u[0] = t[0];
@@ -589,6 +593,27 @@ mod tests {
         let mut u = vec![0u8; bwt.len()];
         inverse_bw_transform(bwt, &mut u, None, 4).unwrap();
         assert_eq!(&u, b"banana");
+    }
+
+    #[test]
+    fn test_bw_transform_short_output_is_invalid_argument() {
+        let mut u = vec![0u8; 5];
+        let mut idx = 0;
+        assert_eq!(
+            bw_transform(b"banana", &mut u, None, &mut idx),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_bw_transform_short_sa_is_invalid_argument() {
+        let mut u = vec![0u8; 6];
+        let mut sa = vec![0i32; 5];
+        let mut idx = 0;
+        assert_eq!(
+            bw_transform(b"banana", &mut u, Some(&mut sa), &mut idx),
+            Err(DivSufSortError::InvalidArgument)
+        );
     }
 
     #[test]

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update GitHub Actions, add an actions lockfile and group Dependabot updates (#19)
 
 ### Fixed
+- `divbwt` and `bw_transform` now return `InvalidArgument` instead of panicking when the output buffer `u` (or the provided suffix array in `bw_transform`) is shorter than the input
 - Panic in `ss_swapmerge` on periodic inputs (#21)
 - Wrong suffix array on periodic inputs caused by `tr_copy`/`tr_partialcopy` filling the right partition from the wrong position (#22)
 - Parallel `sssort` aliased `&mut` references to the suffix array; it now splits the array into disjoint chunks (#25)
