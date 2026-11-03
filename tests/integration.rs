@@ -316,3 +316,22 @@ fn test_text26_large_sufcheck() {
         });
     }
 }
+
+// Regression: periodic inputs whose single B*-bucket spans several SS_BLOCKSIZE blocks
+// used to panic in ss_swapmerge (a flagged `~idx` entry was used as an index).
+#[test]
+fn test_sufcheck_periodic_multi_block_bucket() {
+    let units: &[&[u8]] = &[
+        b"ab",
+        b"abc",
+        b"abcdefgh",
+        b"the quick brown fox jumps over the lazy dog. ",
+    ];
+    for unit in units {
+        // The B*-bucket needs more than ~1092 suffixes to reach the failing path,
+        // i.e. n >= ~1100 * period.
+        let n = unit.len() * 1200;
+        let t: Vec<u8> = unit.iter().copied().cycle().take(n).collect();
+        assert_sufcheck(&t);
+    }
+}
