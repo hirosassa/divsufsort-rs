@@ -1274,7 +1274,7 @@ fn ss_swapmerge(
             if ss_compare(
                 t,
                 pa,
-                sa[middle - 1] as usize,
+                getidx(sa[middle - 1]),
                 pa,
                 sa[middle] as usize,
                 depth,
