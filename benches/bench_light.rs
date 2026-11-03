@@ -1,5 +1,5 @@
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use divsufsort_rs::divsufsort;
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use divsufsort_rs::{divbwt, divsufsort};
 
 fn lcg_next(seed: &mut u64) -> u8 {
     *seed = seed
@@ -33,13 +33,21 @@ fn corpus_fibonacci(size: usize) -> Vec<u8> {
     s1
 }
 
+fn corpus_repeat(size: usize) -> Vec<u8> {
+    const UNIT: &[u8] = b"the quick brown fox jumps over the lazy dog. ";
+    UNIT.iter().copied().cycle().take(size).collect()
+}
+
+type Corpus = (&'static str, fn(usize) -> Vec<u8>);
+
 fn bench_divsufsort_light(c: &mut Criterion) {
     const SIZES: &[usize] = &[100_000, 1_000_000];
 
-    let corpora: &[(&str, fn(usize) -> Vec<u8>)] = &[
+    let corpora: &[Corpus] = &[
         ("random_binary", corpus_random_binary),
         ("text_26", corpus_text),
         ("fibonacci", corpus_fibonacci),
+        ("repeat", corpus_repeat),
     ];
 
     for &(name, func) in corpora {
@@ -50,10 +58,12 @@ fn bench_divsufsort_light(c: &mut Criterion) {
             let data = func(size);
             group.throughput(Throughput::Bytes(size as u64));
             group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
-                b.iter(|| {
-                    let mut sa = vec![0i32; data.len()];
-                    divsufsort(data, &mut sa).unwrap();
-                })
+                // Allocate the suffix array outside the timed section.
+                b.iter_batched_ref(
+                    || vec![0i32; data.len()],
+                    |sa| divsufsort(data, sa).unwrap(),
+                    BatchSize::LargeInput,
+                )
             });
         }
 
@@ -61,5 +71,26 @@ fn bench_divsufsort_light(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_divsufsort_light);
+fn bench_divbwt_light(c: &mut Criterion) {
+    const SIZES: &[usize] = &[100_000, 1_000_000];
+
+    let mut group = c.benchmark_group("divbwt/text_26");
+    group.sample_size(10);
+
+    for &size in SIZES {
+        let data = corpus_text(size);
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
+            b.iter_batched_ref(
+                || vec![0u8; data.len()],
+                |u| divbwt(data, u, None).unwrap(),
+                BatchSize::LargeInput,
+            )
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_divsufsort_light, bench_divbwt_light);
 criterion_main!(benches);
