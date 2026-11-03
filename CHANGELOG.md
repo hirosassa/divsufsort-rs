@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `bw_transform` now returns `InvalidArgument` instead of panicking when a provided suffix array has an out-of-range entry or does not contain exactly one `0`
+- `inverse_bw_transform` now returns `InvalidArgument` when the output buffer `u` is shorter than the input, instead of silently truncating the result (or panicking for a one-byte input)
 
 ## [0.7.0] - 2026-11-03
 

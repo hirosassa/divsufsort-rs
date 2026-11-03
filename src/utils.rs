@@ -233,8 +233,8 @@ pub fn bw_transform(
 ///
 /// # Errors
 ///
-/// Returns [`DivSufSortError::InvalidArgument`] if `idx` is out of range or `a` is
-/// too short.
+/// Returns [`DivSufSortError::InvalidArgument`] if `idx` is out of range, `u` is shorter
+/// than `t`, or `a` is too short.
 pub fn inverse_bw_transform(
     t: &[u8],
     u: &mut [u8],
@@ -244,6 +244,9 @@ pub fn inverse_bw_transform(
     let n = t.len();
 
     if idx < 0 || idx as usize > n || (n > 0 && idx == 0) {
+        return Err(DivSufSortError::InvalidArgument);
+    }
+    if u.len() < n {
         return Err(DivSufSortError::InvalidArgument);
     }
     if n <= 1 {
@@ -692,6 +695,31 @@ mod tests {
             Ok(())
         );
         assert_eq!((&u[..], idx), (&b"annbaa"[..], 4));
+    }
+
+    #[test]
+    fn test_inverse_bw_transform_short_output_is_invalid_argument() {
+        let mut u = vec![0u8; 5];
+        assert_eq!(
+            inverse_bw_transform(b"annbaa", &mut u, None, 4),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_inverse_bw_transform_single_byte_with_empty_output_is_invalid_argument() {
+        let mut u: [u8; 0] = [];
+        assert_eq!(
+            inverse_bw_transform(b"a", &mut u, None, 1),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn test_inverse_bw_transform_longer_output_is_accepted() {
+        let mut u = vec![0u8; 8];
+        assert_eq!(inverse_bw_transform(b"annbaa", &mut u, None, 4), Ok(()));
+        assert_eq!(&u[..6], b"banana");
     }
 
     #[test]
