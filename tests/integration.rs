@@ -335,3 +335,26 @@ fn test_sufcheck_periodic_multi_block_bucket() {
         assert_sufcheck(&t);
     }
 }
+
+// Regression: a 2-letter periodic input produced an invalid suffix array.
+#[test]
+fn test_sufcheck_periodic_period36_binary() {
+    let unit = b"babbaabbbbabbbaababaabaabaabbbbbbabb";
+    let t: Vec<u8> = unit.iter().copied().cycle().take(3607).collect();
+    assert_sufcheck(&t);
+}
+
+// Regression: tr_copy / tr_partialcopy filled the right partition one slot too low,
+// which broke tandem-repeat handling for 2-letter periodic inputs.
+#[test]
+fn test_sufcheck_periodic_binary_units() {
+    for &period in &[36usize, 45, 47, 53, 56, 60] {
+        // Deterministic pseudo-random 2-letter unit of the given period.
+        let mut state = period as u64 * 7919 + 2;
+        let unit: Vec<u8> = (0..period)
+            .map(|_| b'a' + lcg_next(&mut state) % 2)
+            .collect();
+        let t: Vec<u8> = unit.iter().copied().cycle().take(period * 300).collect();
+        assert_sufcheck(&t);
+    }
+}
