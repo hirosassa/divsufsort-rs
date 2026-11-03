@@ -136,7 +136,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
     Ok(())
 }
 
-fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
+const fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
     let mut i = 0i32;
     let mut half = size >> 1;
     while 0 < size {
@@ -183,7 +183,6 @@ pub fn bw_transform(
             // delegate to divbwt
             let primary_idx = crate::divbwt(t, u, None)?;
             *idx = primary_idx;
-            Ok(())
         }
         Some(a) => {
             // T != U case (straightforward implementation)
@@ -199,9 +198,9 @@ pub fn bw_transform(
                 u[i] = t[(a[i] - 1) as usize];
                 i += 1;
             }
-            Ok(())
         }
     }
+    Ok(())
 }
 
 /// Inverts the Burrows-Wheeler Transform.
@@ -291,7 +290,7 @@ pub fn inverse_bw_transform(
     Ok(())
 }
 
-fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
+const fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
     let tsize = t.len() as i32;
     let psize = p.len() as i32;
     let mut i = suf + *match_len;
@@ -403,7 +402,7 @@ pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
 ///
 /// Returns `(count, left)` where `count` is the number of occurrences and `left` is the
 /// leftmost index in `sa` at which a match starts. If `count == 0`, `left` is undefined.
-pub fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
+pub const fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
     let tsize = t.len() as i32;
     let sasize = sa.len() as i32;
     let c = c as i32;

@@ -93,7 +93,14 @@ fn ss_isqrt(x: i32) -> i32 {
 /// p1 and p2 are separate slices (for lastsuffix, PAi and PA are different slices).
 /// p1_idx and p2_idx are indices within their respective slices.
 #[inline(always)]
-fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, depth: Depth) -> i32 {
+const fn ss_compare(
+    t: &[u8],
+    p1: &[i32],
+    p1_idx: usize,
+    p2: &[i32],
+    p2_idx: usize,
+    depth: Depth,
+) -> i32 {
     let u1_start = (depth + p1[p1_idx]) as usize;
     let u2_start = (depth + p2[p2_idx]) as usize;
     let u1n = (p1[p1_idx + 1] + 2) as usize;
@@ -121,7 +128,7 @@ fn ss_compare(t: &[u8], p1: &[i32], p1_idx: usize, p2: &[i32], p2_idx: usize, de
 
 /// Insertion sort for small ranges within the suffix sort, skipping negative group markers.
 #[inline]
-fn ss_insertionsort_impl(
+const fn ss_insertionsort_impl(
     t: &[u8],
     pa: &[i32],
     sa: &mut [i32],
@@ -933,7 +940,7 @@ const MERGE_MID_NEGATIVE: i32 = 2;
 /// position `src` toward `limit`, writing into `dest` (also moving backward).
 /// Returns the updated `(dest, src)` positions.
 #[inline(always)]
-fn skip_negatives_backward(
+const fn skip_negatives_backward(
     sa: &mut [i32],
     mut dest: usize,
     mut src: usize,
@@ -1294,7 +1301,7 @@ const fn getidx(a: i32) -> usize {
 }
 
 /// Post-merge verification: marks equal suffixes at merge boundaries with negative flags.
-fn merge_check(
+const fn merge_check(
     t: &[u8],
     pa: &[i32],
     sa: &mut [i32],
