@@ -41,7 +41,7 @@ fn corpus_repeat(size: usize) -> Vec<u8> {
 type Corpus = (&'static str, fn(usize) -> Vec<u8>);
 
 fn bench_divsufsort_light(c: &mut Criterion) {
-    const SIZES: &[usize] = &[100_000, 1_000_000];
+    const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
 
     let corpora: &[Corpus] = &[
         ("random_binary", corpus_random_binary),
@@ -72,7 +72,7 @@ fn bench_divsufsort_light(c: &mut Criterion) {
 }
 
 fn bench_divbwt_light(c: &mut Criterion) {
-    const SIZES: &[usize] = &[100_000, 1_000_000];
+    const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
 
     let mut group = c.benchmark_group("divbwt/text_26");
     group.sample_size(10);

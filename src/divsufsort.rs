@@ -4,6 +4,7 @@
 //! 1. `sort_typebstar` — classify, sort B*-suffixes (parallel sssort + trsort), scatter back
 //! 2. `construct_sa` / `construct_bwt` — induce the full SA or BWT from sorted B*-suffixes
 
+use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -14,32 +15,45 @@ use crate::trsort::trsort;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
+/// Bucket table of A-type suffixes, indexed by the first character.
+type BucketA = [i32; BUCKET_A_SIZE];
+/// Bucket table of B / B*-type suffixes, indexed by `(c1 << 8) | c0`.
+type BucketB = [i32; BUCKET_B_SIZE];
+
+/// Allocates a zeroed fixed-size table on the heap (avoids a large stack temporary).
+fn zeroed_table<const N: usize>() -> Box<[i32; N]> {
+    vec![0i32; N]
+        .into_boxed_slice()
+        .try_into()
+        .unwrap_or_else(|_| unreachable!("a boxed slice of length N always converts to [i32; N]"))
+}
+
 #[inline(always)]
-const fn bucket_a(ba: &[i32], c0: usize) -> i32 {
+const fn bucket_a(ba: &BucketA, c0: usize) -> i32 {
     ba[c0]
 }
 #[inline(always)]
-const fn bucket_a_mut(ba: &mut [i32], c0: usize) -> &mut i32 {
+const fn bucket_a_mut(ba: &mut BucketA, c0: usize) -> &mut i32 {
     &mut ba[c0]
 }
 
 /// BUCKET_B(c0, c1) = bucket_B[(c1 << 8) | c0]
 #[inline(always)]
-const fn bucket_b(bb: &[i32], c0: usize, c1: usize) -> i32 {
+const fn bucket_b(bb: &BucketB, c0: usize, c1: usize) -> i32 {
     bb[(c1 << 8) | c0]
 }
 #[inline(always)]
-const fn bucket_b_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+const fn bucket_b_mut(bb: &mut BucketB, c0: usize, c1: usize) -> &mut i32 {
     &mut bb[(c1 << 8) | c0]
 }
 
 /// BUCKET_BSTAR(c0, c1) = bucket_B[(c0 << 8) | c1]
 #[inline(always)]
-const fn bucket_bstar(bb: &[i32], c0: usize, c1: usize) -> i32 {
+const fn bucket_bstar(bb: &BucketB, c0: usize, c1: usize) -> i32 {
     bb[(c0 << 8) | c1]
 }
 #[inline(always)]
-const fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
+const fn bucket_bstar_mut(bb: &mut BucketB, c0: usize, c1: usize) -> &mut i32 {
     &mut bb[(c0 << 8) | c1]
 }
 
@@ -50,8 +64,8 @@ const fn bucket_bstar_mut(bb: &mut [i32], c0: usize, c1: usize) -> &mut i32 {
 fn count_and_classify_suffixes(
     t: &[u8],
     sa: &mut [i32],
-    bkt_a: &mut [i32],
-    bkt_b: &mut [i32],
+    bkt_a: &mut BucketA,
+    bkt_b: &mut BucketB,
     n: usize,
 ) -> usize {
     for x in bkt_a.iter_mut() {
@@ -179,8 +193,8 @@ const fn scatter_bstar_to_sa(t: &[u8], sa: &mut [i32], isab: usize, n: usize, m:
 #[inline(always)]
 fn place_sorted_bstar_in_buckets(
     sa: &mut [i32],
-    bkt_a: &[i32],
-    bkt_b: &mut [i32],
+    bkt_a: &BucketA,
+    bkt_b: &mut BucketB,
     scatter_out: &[i32],
     m: usize,
     n: usize,
@@ -222,8 +236,8 @@ fn place_sorted_bstar_in_buckets(
 fn sort_typebstar(
     t: &[u8],
     sa: &mut [i32],
-    bkt_a: &mut [i32],
-    bkt_b: &mut [i32],
+    bkt_a: &mut BucketA,
+    bkt_b: &mut BucketB,
     n: usize,
 ) -> usize {
     let m = count_and_classify_suffixes(t, sa, bkt_a, bkt_b, n);
@@ -350,8 +364,8 @@ fn sort_typebstar(
 fn construct_sa(
     t: &[u8],
     sa: &mut [i32],
-    bkt_a: &mut [i32],
-    bkt_b: &mut [i32],
+    bkt_a: &mut BucketA,
+    bkt_b: &mut BucketB,
     n: usize,
     m: usize,
 ) {
@@ -429,8 +443,8 @@ fn construct_sa(
 fn construct_bwt(
     t: &[u8],
     sa: &mut [i32],
-    bkt_a: &mut [i32],
-    bkt_b: &mut [i32],
+    bkt_a: &mut BucketA,
+    bkt_b: &mut BucketB,
     n: usize,
     m: usize,
 ) -> usize {
@@ -537,8 +551,8 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
         return Ok(());
     }
 
-    let mut bkt_a = vec![0i32; BUCKET_A_SIZE];
-    let mut bkt_b = vec![0i32; BUCKET_B_SIZE];
+    let mut bkt_a = zeroed_table::<BUCKET_A_SIZE>();
+    let mut bkt_b = zeroed_table::<BUCKET_B_SIZE>();
 
     // Allocate one extra element so that sa[n] == 0 serves as a sentinel for ss_compare.
     // ss_compare reads pa[pab + k + 1] where k can be m-1 (the last B*-suffix index),
@@ -574,8 +588,8 @@ pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivS
         return Ok(1);
     }
 
-    let mut bkt_a = vec![0i32; BUCKET_A_SIZE];
-    let mut bkt_b = vec![0i32; BUCKET_B_SIZE];
+    let mut bkt_a = zeroed_table::<BUCKET_A_SIZE>();
+    let mut bkt_b = zeroed_table::<BUCKET_B_SIZE>();
 
     // Always use an n+1 internal buffer so that sa[n] == 0 is available as a PAb sentinel
     // (see divsufsort for the full explanation).  The optional `a` parameter was previously
