@@ -1,7 +1,7 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use divsufsort_rs::{divbwt, divsufsort};
 
-fn lcg_next(seed: &mut u64) -> u8 {
+const fn lcg_next(seed: &mut u64) -> u8 {
     *seed = seed
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);

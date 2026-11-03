@@ -3,7 +3,7 @@
 
 use divsufsort_rs::{divbwt, divsufsort};
 
-fn lcg(state: &mut u64) -> u64 {
+const fn lcg(state: &mut u64) -> u64 {
     *state = state
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);
