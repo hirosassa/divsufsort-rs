@@ -27,7 +27,8 @@ impl std::error::Error for SufCheckError {}
 /// Checks that all SA entries are in range, that suffixes are lexicographically ordered,
 /// and that the inverse SA mapping is consistent.
 ///
-/// If `verbose` is `true`, diagnostic messages are printed to stderr.
+/// If `verbose` is `true`, diagnostic messages are printed to stderr (requires the `std`
+/// feature; without it `verbose` is ignored).
 ///
 /// # Errors
 ///

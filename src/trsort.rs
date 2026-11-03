@@ -527,8 +527,9 @@ fn tr_handle_tandem_partition(
     state: &mut TrSortState<'_>,
     incr: usize,
 ) -> bool {
-    // SAFETY: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar).
-    // tr_partition only reads from isad_tandem and swaps elements in sa.
+    // SAFETY: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar), and the
+    // `&mut isa` is not used while `isad_tandem` is live, so the shared reborrow is not
+    // aliased by a writer. tr_partition only reads from isad_tandem and swaps elements in sa.
     let isad_tandem: &[i32] = unsafe {
         let offset = *state.isad - incr;
         core::slice::from_raw_parts(isa.as_ptr().add(offset), isa.len() - offset)
