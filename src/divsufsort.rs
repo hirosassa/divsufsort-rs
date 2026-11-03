@@ -195,13 +195,9 @@ fn place_sorted_bstar_in_buckets(
     sa: &mut [i32],
     bkt_a: &BucketA,
     bkt_b: &mut BucketB,
-    scatter_out: &[i32],
     m: usize,
     n: usize,
 ) {
-    for x in sa.iter_mut() {
-        *x = 0;
-    }
     *bucket_b_mut(bkt_b, ALPHABET_SIZE - 1, ALPHABET_SIZE - 1) = n as i32;
     let mut k = m as isize - 1;
     for c0 in (0..=(ALPHABET_SIZE as isize - 2)).rev() {
@@ -215,7 +211,9 @@ fn place_sorted_bstar_in_buckets(
             let mut ii = t_val;
             let mut kk = k;
             while j_val <= kk {
-                sa[ii as usize] = scatter_out[kk as usize];
+                // Move in place, as in C: ii >= kk and both walk downwards, so a source is
+                // never overwritten before it has been moved.
+                sa[ii as usize] = sa[kk as usize];
                 ii -= 1;
                 kk -= 1;
             }
@@ -315,23 +313,24 @@ fn sort_typebstar(
         //   • sssort is called with bufsize=0, so it uses the tail of each job's own
         //     sort range [middle..j) as its merge buffer (middle = j − sqrt(j−i_val)).
         //     This buffer region is also within the job's exclusive [i_val..j) range.
-        //   • pa = sa[pab..n+1] = sa[n−m..n+1] is read-only during sssort.
-        //     Because m ≤ n/2, pab = n−m ≥ m, so [0..m) and [n−m..n+1) are disjoint.
-        //   • sa[n] = 0 (sentinel, never overwritten) satisfies ss_compare's PA[m] read.
+        //   • pa = sa[pab..n] = sa[n−m..n] is read-only during sssort.
+        //     Because m ≤ n/2, pab = n−m ≥ m, so [0..m) and [n−m..n) are disjoint.
+        //   • A probe one past the end of PA (index n) is answered by `pa_val` without
+        //     reading memory, so no sentinel element is needed.
         //   • t is read-only throughout, satisfying Send + Sync for the closure.
         {
             // Convert the raw pointer to usize so that the closure is Send + Sync.
             // usize is Copy + Send + Sync; we cast back to *mut i32 inside each thread.
             let sa_addr: usize = sa.as_mut_ptr() as usize;
-            let n1 = n + 1;
+            let len = sa.len();
             #[cfg(feature = "rayon")]
             let iter = jobs.par_iter();
             #[cfg(not(feature = "rayon"))]
             let iter = jobs.iter();
             iter.for_each(|&(i_val, j_val, lastsuffix)| {
                 let sa_ptr = sa_addr as *mut i32;
-                let sa_local = unsafe { core::slice::from_raw_parts_mut(sa_ptr, n1) };
-                let pa_local = unsafe { core::slice::from_raw_parts(sa_ptr as *const i32, n1) };
+                let sa_local = unsafe { core::slice::from_raw_parts_mut(sa_ptr, len) };
+                let pa_local = unsafe { core::slice::from_raw_parts(sa_ptr as *const i32, len) };
                 let ctx = SsortCtx {
                     t,
                     pa: pa_local,
@@ -352,8 +351,7 @@ fn sort_typebstar(
 
         scatter_bstar_to_sa(t, sa, isab, n, m);
 
-        let scatter_out: Vec<i32> = sa[0..m].to_vec();
-        place_sorted_bstar_in_buckets(sa, bkt_a, bkt_b, &scatter_out, m, n);
+        place_sorted_bstar_in_buckets(sa, bkt_a, bkt_b, m, n);
     }
 
     m
@@ -554,14 +552,8 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
     let mut bkt_a = zeroed_table::<BUCKET_A_SIZE>();
     let mut bkt_b = zeroed_table::<BUCKET_B_SIZE>();
 
-    // Allocate one extra element so that sa[n] == 0 serves as a sentinel for ss_compare.
-    // ss_compare reads pa[pab + k + 1] where k can be m-1 (the last B*-suffix index),
-    // making the access pa[n] = sa[n].  The extra zero is never written by any algorithm
-    // phase, so it remains 0 throughout.  The caller's sa[0..n] is copied back at the end.
-    let mut sa_buf = vec![0i32; n + 1];
-    let m = sort_typebstar(t, &mut sa_buf, &mut bkt_a, &mut bkt_b, n);
-    construct_sa(t, &mut sa_buf, &mut bkt_a, &mut bkt_b, n, m);
-    sa.copy_from_slice(&sa_buf[..n]);
+    let m = sort_typebstar(t, sa, &mut bkt_a, &mut bkt_b, n);
+    construct_sa(t, sa, &mut bkt_a, &mut bkt_b, n, m);
 
     Ok(())
 }
@@ -591,24 +583,28 @@ pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivS
     let mut bkt_a = zeroed_table::<BUCKET_A_SIZE>();
     let mut bkt_b = zeroed_table::<BUCKET_B_SIZE>();
 
-    // Always use an n+1 internal buffer so that sa[n] == 0 is available as a PAb sentinel
-    // (see divsufsort for the full explanation).  The optional `a` parameter was previously
-    // used as scratch space to avoid this allocation, but it could only hold n elements,
-    // one short of the n+1 needed.
-    if let Some(b_arr) = &a
-        && b_arr.len() < n
+    if let Some(work) = &a
+        && work.len() < n
     {
         return Err(DivSufSortError::InvalidArgument);
     }
-    let mut b_arr = vec![0i32; n + 1];
-    let m = sort_typebstar(t, &mut b_arr, &mut bkt_a, &mut bkt_b, n);
-    let pidx = construct_bwt(t, &mut b_arr, &mut bkt_a, &mut bkt_b, n, m);
+    // Use the caller's scratch buffer when given; otherwise allocate one.
+    let mut owned = Vec::new();
+    let work: &mut [i32] = a.map_or_else(
+        || {
+            owned.resize(n, 0);
+            &mut owned[..]
+        },
+        |work| &mut work[..n],
+    );
+    let m = sort_typebstar(t, work, &mut bkt_a, &mut bkt_b, n);
+    let pidx = construct_bwt(t, work, &mut bkt_a, &mut bkt_b, n, m);
     u[0] = t[n - 1];
     for i in 0..pidx {
-        u[i + 1] = b_arr[i] as u8;
+        u[i + 1] = work[i] as u8;
     }
     for i in (pidx + 1)..n {
-        u[i] = b_arr[i] as u8;
+        u[i] = work[i] as u8;
     }
     let pidx = pidx + 1;
 

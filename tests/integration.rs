@@ -358,3 +358,54 @@ fn test_sufcheck_periodic_binary_units() {
         assert_sufcheck(&t);
     }
 }
+
+// The caller's buffers may hold arbitrary data on entry: results must not depend on it.
+fn memory_test_inputs() -> Vec<Vec<u8>> {
+    let mut v = vec![
+        b"banana".to_vec(),
+        b"mississippi".to_vec(),
+        vec![b'a'; 5000],
+        corpus_fibonacci(5000),
+        lcg_bytes(7, 5000),
+    ];
+    v.push((0..6000).map(|i| b'a' + (i % 3) as u8).collect());
+    v.push((0..3000).map(|i| if i % 7 == 6 { 1 } else { 2 }).collect());
+    v
+}
+
+#[test]
+fn test_divsufsort_ignores_initial_sa_contents() {
+    for t in memory_test_inputs() {
+        let mut expected = vec![0i32; t.len()];
+        divsufsort(&t, &mut expected).unwrap();
+        for fill in [-1i32, i32::MAX, 0x5555_5555] {
+            let mut sa = vec![fill; t.len()];
+            divsufsort(&t, &mut sa).unwrap();
+            assert_eq!(sa, expected, "fill {fill:#x}, n = {}", t.len());
+        }
+    }
+}
+
+#[test]
+fn test_divbwt_ignores_scratch_contents_and_uses_it() {
+    for t in memory_test_inputs() {
+        let n = t.len();
+        let mut expected = vec![0u8; n];
+        let expected_idx = divbwt(&t, &mut expected, None).unwrap();
+        for (len, fill) in [
+            (n, -1i32),
+            (n, 0x5555_5555),
+            (n + 1, i32::MAX),
+            (n + 100, -7),
+        ] {
+            let mut scratch = vec![fill; len];
+            let mut u = vec![0u8; n];
+            let idx = divbwt(&t, &mut u, Some(&mut scratch)).unwrap();
+            assert_eq!(
+                (idx, &u),
+                (expected_idx, &expected),
+                "scratch len {len}, n = {n}"
+            );
+        }
+    }
+}

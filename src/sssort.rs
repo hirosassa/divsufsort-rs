@@ -11,21 +11,14 @@ use crate::constants::{
 
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
 /// In C: `PA[idx]` = `SA[pab + idx]`, even when idx is negative (equal-group markers).
+///
+/// `pa` is the whole SA buffer of length n. A probe one past the end (`abs == n`, the
+/// `ss_partition` boundary look-ahead of the last B*-suffix) reads as 0, which is what
+/// the former zero sentinel `sa[n]` provided; it never touches memory outside `pa`.
 #[inline(always)]
 fn pa_val(pa: &[i32], pab: usize, idx: i32) -> i32 {
-    // SAFETY: `pa` is the full SA buffer of length n+1. `pab = n − m` where m ≤ n/2.
-    // `idx` originates from SA elements, which fall into exactly three cases:
-    //   (a) Non-negative suffix index k ∈ [0, m−1]:
-    //       abs = pab + k ∈ [n−m, n−1]  ⊂  [0, n+1)
-    //   (b) Equal-group marker !k for k ∈ [0, m−1]  (i.e. idx = −(k+1)):
-    //       abs = pab − k − 1 ∈ [n−2m, n−m−1].
-    //       Lower bound ≥ 0 because m ≤ n/2 ⟹ n−2m ≥ 0.  ⊂  [0, n+1)
-    //   (c) One-past-end probe k+1 for k ∈ [0, m−1]  (ss_partition boundary check):
-    //       abs = pab + k + 1 ∈ [n−m+1, n].
-    //       Upper bound = n < n+1 = pa.len(), reaching the sentinel sa[n] = 0.  ⊂  [0, n+1)
-    // All three cases produce abs ∈ [0, n] ⊂ [0, n+1), so get_unchecked is sound.
     let abs = (pab as i64 + idx as i64) as usize;
-    unsafe { *pa.get_unchecked(abs) }
+    pa.get(abs).copied().unwrap_or(0)
 }
 
 static SQQ_TABLE: [i32; 256] = [
