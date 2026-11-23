@@ -8,7 +8,7 @@ workflows:
     '.github/workflows/test.yaml':
         - 'actions/checkout@v7.0.1'
         - 'codecov/codecov-action@v7.1.1'
-        - 'taiki-e/install-action@v2.89.1'
+        - 'taiki-e/install-action@v2.90.3'
     '.github/workflows/verify-lockfile.yaml':
         - 'actions/checkout@v7.0.1'
 dependencies:
@@ -29,8 +29,8 @@ dependencies:
         repo_id: 200299178
         uses:
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'taiki-e/install-action@v2.89.1':
-        ref: 'v2.89.1'
-        commit: 'sha1-682ce6c3c696a4cd5168a05f98e51aa02b877941'
+    'taiki-e/install-action@v2.90.3':
+        ref: 'v2.90.3'
+        commit: 'sha1-cfdb7ed4ccc7c7dce37759eae89dc5674b469b39'
         owner_id: 43724913
         repo_id: 442947557
