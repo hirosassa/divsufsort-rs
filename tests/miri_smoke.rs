@@ -1,6 +1,14 @@
 //! Small inputs that exercise the parallel B*-suffix sort path (several non-trivial
-//! buckets, and one bucket spanning several SS_BLOCKSIZE blocks). Sized to stay fast
+//! buckets, and one bucket spanning several `SS_BLOCKSIZE` blocks). Sized to stay fast
 //! under `cargo +nightly miri test --test miri_smoke`.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
+
 use divsufsort_rs::{divsufsort, sufcheck};
 
 fn assert_sufcheck(t: &[u8]) {

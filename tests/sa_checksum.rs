@@ -1,5 +1,12 @@
 //! Pins the exact suffix array / BWT output for deterministic inputs, so that
 //! performance refactorings can be shown to leave the output unchanged.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
 
 use divsufsort_rs::{SaIndex, divbwt, divsufsort};
 

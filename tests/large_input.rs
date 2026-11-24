@@ -10,6 +10,13 @@
 //! | `i32_at_i32_max_boundary`             | ~10 GiB   |
 //! | `i64_beyond_i32_max`                  | ~19 GiB   |
 //! | `i32_rejects_len_over_i32_max`        | ~2 GiB    |
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
 
 use divsufsort_rs::{DivSufSortError, divsufsort, sufcheck};
 

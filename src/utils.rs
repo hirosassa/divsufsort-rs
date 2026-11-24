@@ -37,7 +37,11 @@ impl std::error::Error for SufCheckError {}
 pub fn sufcheck<I: SaIndex>(
     t: &[u8],
     sa: &[I],
-    #[allow(unused)] verbose: bool,
+    #[cfg_attr(
+        not(feature = "std"),
+        expect(unused, reason = "verbose output needs std::eprintln")
+    )]
+    verbose: bool,
 ) -> Result<(), SufCheckError> {
     let n = t.len();
 
@@ -95,7 +99,7 @@ pub fn sufcheck<I: SaIndex>(
         c_table[ch as usize] += 1;
     }
     let mut p = 0i64;
-    for entry in c_table.iter_mut() {
+    for entry in &mut c_table {
         let t_val = *entry;
         *entry = p;
         p += t_val;
@@ -352,11 +356,7 @@ fn compare(t: &[u8], p: &[u8], suf: i64, match_len: &mut i64) -> i64 {
         j += 1;
     }
     *match_len = j;
-    if r == 0 {
-        -(if j != psize { 1 } else { 0 })
-    } else {
-        r
-    }
+    if r == 0 { -i64::from(j != psize) } else { r }
 }
 
 /// Searches for pattern `p` in text `t` using the suffix array `sa`.
@@ -526,6 +526,7 @@ pub fn sa_simplesearch<I: SaIndex>(t: &[u8], sa: &[I], c: u8) -> (I, I) {
 }
 
 #[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "test code")]
 mod tests {
     use super::*;
 

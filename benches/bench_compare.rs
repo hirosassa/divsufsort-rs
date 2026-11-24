@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
+
 #[cfg(feature = "c-bench")]
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 #[cfg(feature = "c-bench")]
@@ -5,8 +13,12 @@ use divsufsort_rs::divsufsort as divsufsort_rust;
 #[cfg(feature = "c-bench")]
 use divsufsort_rs::ffi::{divsufsort_c, divsufsort64_c};
 
+/// Generator of a benchmark input of the requested size.
 #[cfg(feature = "c-bench")]
-fn lcg_next(seed: &mut u64) -> u8 {
+type CorpusFn = fn(usize) -> Vec<u8>;
+
+#[cfg(feature = "c-bench")]
+const fn lcg_next(seed: &mut u64) -> u8 {
     *seed = seed
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);
@@ -45,7 +57,7 @@ fn corpus_fibonacci(size: usize) -> Vec<u8> {
 fn bench_compare(c: &mut Criterion) {
     const SIZE: usize = 1_000_000;
 
-    let corpora: &[(&str, fn(usize) -> Vec<u8>)] = &[
+    let corpora: &[(&str, CorpusFn)] = &[
         ("random_binary", corpus_random_binary),
         ("text_26", corpus_text),
         ("fibonacci", corpus_fibonacci),
@@ -62,28 +74,28 @@ fn bench_compare(c: &mut Criterion) {
             b.iter(|| {
                 let mut sa = vec![0i32; data.len()];
                 divsufsort_rust(data, &mut sa).unwrap();
-            })
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("c", SIZE), &data, |b, data| {
             b.iter(|| {
                 let mut sa = vec![0i32; data.len()];
                 divsufsort_c(data, &mut sa);
-            })
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("rust_i64", SIZE), &data, |b, data| {
             b.iter(|| {
                 let mut sa = vec![0i64; data.len()];
                 divsufsort_rust(data, &mut sa).unwrap();
-            })
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("c_i64", SIZE), &data, |b, data| {
             b.iter(|| {
                 let mut sa = vec![0i64; data.len()];
                 divsufsort64_c(data, &mut sa);
-            })
+            });
         });
 
         group.finish();
