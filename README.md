@@ -47,7 +47,7 @@ When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
 ```toml
 [dependencies]
-divsufsort-rs = "0.7"
+divsufsort-rs = "0.8"
 ```
 
 ```rust
