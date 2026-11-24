@@ -5,9 +5,10 @@
 //! (`ss_swapmerge`) that combines sorted blocks using forward/backward merging.
 
 use crate::constants::{
-    Depth, FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
+    FixedStack, LG_TABLE, SS_BLOCKSIZE, SS_INSERTIONSORT_THRESHOLD, SS_MISORT_STACKSIZE,
     SS_SMERGE_STACKSIZE,
 };
+use crate::sa_index::SaIndex;
 
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
 /// In C: `PA[idx]` = `SA[pab + idx]`, even when idx is negative (equal-group markers).
@@ -17,9 +18,9 @@ use crate::constants::{
 /// reads as 0, which is what the zero sentinel `sa[n]` provides in C; it never touches
 /// memory outside `pa`.
 #[inline(always)]
-fn pa_val(pa: &[i32], pab: usize, idx: i32) -> i32 {
-    let abs = (pab as i64 + idx as i64) as usize;
-    pa.get(abs).copied().unwrap_or(0)
+fn pa_val<I: SaIndex>(pa: &[I], pab: usize, idx: I) -> I {
+    let abs = (pab as i64 + idx.to_i64()) as usize;
+    pa.get(abs).copied().unwrap_or(I::ZERO)
 }
 
 static SQQ_TABLE: [i32; 256] = [
@@ -41,21 +42,23 @@ static SQQ_TABLE: [i32; 256] = [
 
 #[inline(always)]
 /// Integer log2 for 16-bit values, using the lookup table.
-fn ss_ilg(n: i32) -> i32 {
+fn ss_ilg(n: usize) -> i32 {
     if n & 0xff00 != 0 {
-        8 + LG_TABLE[((n >> 8) & 0xff) as usize]
+        8 + LG_TABLE[(n >> 8) & 0xff]
     } else {
-        LG_TABLE[(n & 0xff) as usize]
+        LG_TABLE[n & 0xff]
     }
 }
 
 #[inline(always)]
 /// Integer square root using the SQQ_TABLE lookup, clamped to SS_BLOCKSIZE.
-fn ss_isqrt(x: i32) -> i32 {
+fn ss_isqrt(x: usize) -> i32 {
     let blocksize = SS_BLOCKSIZE as i32;
-    if x >= blocksize * blocksize {
+    if x >= SS_BLOCKSIZE * SS_BLOCKSIZE {
         return blocksize;
     }
+    // x < SS_BLOCKSIZE^2 here, so it fits in i32 for every index type.
+    let x = x as i32;
     let e = if x & 0xffff0000u32 as i32 != 0 {
         if x & 0xff000000u32 as i32 != 0 {
             24 + LG_TABLE[((x >> 24) & 0xff) as usize]
@@ -87,18 +90,18 @@ fn ss_isqrt(x: i32) -> i32 {
 /// p1 and p2 are separate slices (for lastsuffix, PAi and PA are different slices).
 /// p1_idx and p2_idx are indices within their respective slices.
 #[inline(always)]
-const fn ss_compare(
+fn ss_compare<I: SaIndex>(
     t: &[u8],
-    p1: &[i32],
+    p1: &[I],
     p1_idx: usize,
-    p2: &[i32],
+    p2: &[I],
     p2_idx: usize,
-    depth: Depth,
+    depth: I,
 ) -> i32 {
-    let u1_start = (depth + p1[p1_idx]) as usize;
-    let u2_start = (depth + p2[p2_idx]) as usize;
-    let u1n = (p1[p1_idx + 1] + 2) as usize;
-    let u2n = (p2[p2_idx + 1] + 2) as usize;
+    let u1_start = (depth + p1[p1_idx]).to_usize();
+    let u2_start = (depth + p2[p2_idx]).to_usize();
+    let u1n = (p1[p1_idx + 1] + I::from_usize(2)).to_usize();
+    let u2n = (p2[p2_idx + 1] + I::from_usize(2)).to_usize();
 
     let mut u1 = u1_start;
     let mut u2 = u2_start;
@@ -122,13 +125,13 @@ const fn ss_compare(
 
 /// Insertion sort for small ranges within the suffix sort, skipping negative group markers.
 #[inline]
-const fn ss_insertionsort_impl(
+fn ss_insertionsort_impl<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     first: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) {
     if last <= first + 1 {
         return;
@@ -138,13 +141,13 @@ const fn ss_insertionsort_impl(
         let tv = sa[i as usize];
         let mut j = i as usize + 1;
         let r: i32 = 'outer: loop {
-            // if sa[j] is negative, !sa[j] is the actual value (equivalent to PA + *j in C)
-            let sj = if sa[j] >= 0 {
-                sa[j] as usize
+            // if sa[j] is negative, sa[j].bit_not() is the actual value (equivalent to PA + *j in C)
+            let sj = if sa[j] >= I::ZERO {
+                sa[j].to_usize()
             } else {
-                !sa[j] as usize
+                sa[j].bit_not().to_usize()
             };
-            let r = ss_compare(t, pa, tv as usize, pa, sj, depth);
+            let r = ss_compare(t, pa, tv.to_usize(), pa, sj, depth);
             if r <= 0 {
                 break r;
             }
@@ -155,14 +158,14 @@ const fn ss_insertionsort_impl(
                 if j >= last {
                     break 'outer 1;
                 }
-                if sa[j] >= 0 {
+                if sa[j] >= I::ZERO {
                     break;
                 }
                 // negative: continue shifting
             }
         };
         if r == 0 {
-            sa[j] = !sa[j];
+            sa[j] = sa[j].bit_not();
         }
         sa[j - 1] = tv;
         i -= 1;
@@ -170,19 +173,26 @@ const fn ss_insertionsort_impl(
 }
 
 /// Sift-down operation for the max-heap used by `ss_heapsort`.
-fn ss_fixdown(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], mut i: usize, size: usize) {
+fn ss_fixdown<I: SaIndex>(
+    td: &[u8],
+    pa: &[I],
+    pab: usize,
+    sa: &mut [I],
+    mut i: usize,
+    size: usize,
+) {
     let v = sa[i];
-    let c = td[pa_val(pa, pab, v) as usize];
+    let c = td[pa_val(pa, pab, v).to_usize()];
     loop {
         let j = 2 * i + 1;
         if j >= size {
             break;
         }
         let mut k = j;
-        let d_k = td[pa_val(pa, pab, sa[k]) as usize];
+        let d_k = td[pa_val(pa, pab, sa[k]).to_usize()];
         let j1 = j + 1;
         let d = if j1 < size {
-            let e = td[pa_val(pa, pab, sa[j1]) as usize];
+            let e = td[pa_val(pa, pab, sa[j1]).to_usize()];
             if (d_k as i32) < (e as i32) {
                 k = j1;
                 e
@@ -202,12 +212,19 @@ fn ss_fixdown(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], mut i: usize, s
 }
 
 /// Heapsort fallback for `ss_mintrosort` when the introsort recursion limit is exhausted.
-fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, size: usize) {
+fn ss_heapsort<I: SaIndex>(
+    td: &[u8],
+    pa: &[I],
+    pab: usize,
+    sa: &mut [I],
+    first: usize,
+    size: usize,
+) {
     let mut m = size;
     if size.is_multiple_of(2) {
         m -= 1;
-        if td[pa_val(pa, pab, sa[first + m / 2]) as usize]
-            < td[pa_val(pa, pab, sa[first + m]) as usize]
+        if td[pa_val(pa, pab, sa[first + m / 2]).to_usize()]
+            < td[pa_val(pa, pab, sa[first + m]).to_usize()]
         {
             sa.swap(first + m, first + m / 2);
         }
@@ -237,20 +254,20 @@ fn ss_heapsort(td: &[u8], pa: &[i32], pab: usize, sa: &mut [i32], first: usize, 
 }
 
 #[inline(always)]
-fn ss_median3_idx(
+fn ss_median3_idx<I: SaIndex>(
     td: &[u8],
-    pa: &[i32],
+    pa: &[I],
     pab: usize,
-    sa: &[i32],
+    sa: &[I],
     mut v1: usize,
     mut v2: usize,
     v3: usize,
 ) -> usize {
-    if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v2]) as usize] {
+    if td[pa_val(pa, pab, sa[v1]).to_usize()] > td[pa_val(pa, pab, sa[v2]).to_usize()] {
         core::mem::swap(&mut v1, &mut v2);
     }
-    if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
-        if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
+    if td[pa_val(pa, pab, sa[v2]).to_usize()] > td[pa_val(pa, pab, sa[v3]).to_usize()] {
+        if td[pa_val(pa, pab, sa[v1]).to_usize()] > td[pa_val(pa, pab, sa[v3]).to_usize()] {
             return v1;
         } else {
             return v3;
@@ -260,26 +277,26 @@ fn ss_median3_idx(
 }
 
 #[inline(always)]
-fn ss_median5_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], v: [usize; 5]) -> usize {
+fn ss_median5_idx<I: SaIndex>(td: &[u8], pa: &[I], pab: usize, sa: &[I], v: [usize; 5]) -> usize {
     let [mut v1, mut v2, mut v3, mut v4, mut v5] = v;
-    if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
+    if td[pa_val(pa, pab, sa[v2]).to_usize()] > td[pa_val(pa, pab, sa[v3]).to_usize()] {
         core::mem::swap(&mut v2, &mut v3);
     }
-    if td[pa_val(pa, pab, sa[v4]) as usize] > td[pa_val(pa, pab, sa[v5]) as usize] {
+    if td[pa_val(pa, pab, sa[v4]).to_usize()] > td[pa_val(pa, pab, sa[v5]).to_usize()] {
         core::mem::swap(&mut v4, &mut v5);
     }
-    if td[pa_val(pa, pab, sa[v2]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
+    if td[pa_val(pa, pab, sa[v2]).to_usize()] > td[pa_val(pa, pab, sa[v4]).to_usize()] {
         core::mem::swap(&mut v2, &mut v4);
         core::mem::swap(&mut v3, &mut v5);
     }
-    if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v3]) as usize] {
+    if td[pa_val(pa, pab, sa[v1]).to_usize()] > td[pa_val(pa, pab, sa[v3]).to_usize()] {
         core::mem::swap(&mut v1, &mut v3);
     }
-    if td[pa_val(pa, pab, sa[v1]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
+    if td[pa_val(pa, pab, sa[v1]).to_usize()] > td[pa_val(pa, pab, sa[v4]).to_usize()] {
         core::mem::swap(&mut v1, &mut v4);
         core::mem::swap(&mut v3, &mut v5);
     }
-    if td[pa_val(pa, pab, sa[v3]) as usize] > td[pa_val(pa, pab, sa[v4]) as usize] {
+    if td[pa_val(pa, pab, sa[v3]).to_usize()] > td[pa_val(pa, pab, sa[v4]).to_usize()] {
         v4
     } else {
         v3
@@ -287,7 +304,14 @@ fn ss_median5_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], v: [usize; 5]) 
 }
 
 /// Selects a pivot index using median-of-3 or median-of-5 depending on range size.
-fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, last: usize) -> usize {
+fn ss_pivot_idx<I: SaIndex>(
+    td: &[u8],
+    pa: &[I],
+    pab: usize,
+    sa: &[I],
+    first: usize,
+    last: usize,
+) -> usize {
     let t = (last - first) as i32;
     let middle = first + (t / 2) as usize;
     if t <= 512 {
@@ -315,13 +339,13 @@ fn ss_pivot_idx(td: &[u8], pa: &[i32], pab: usize, sa: &[i32], first: usize, las
 /// Partitions [first..last) into two parts and returns the boundary index.
 /// `pa` is the read-only slice `sa[m..]`; `pab` is the offset of PAb within it.
 #[inline]
-fn ss_partition(
-    pa: &[i32],
+fn ss_partition<I: SaIndex>(
+    pa: &[I],
     pab: usize,
-    sa: &mut [i32],
+    sa: &mut [I],
     first: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) -> usize {
     let mut a = first;
     let mut b = last;
@@ -332,7 +356,7 @@ fn ss_partition(
                 break;
             }
             let v = sa[a];
-            if (pa_val(pa, pab, v) + depth) < (pa_val(pa, pab, v + 1) + 1) {
+            if (pa_val(pa, pab, v) + depth) < (pa_val(pa, pab, v + I::ONE) + I::ONE) {
                 break;
             }
             sa[a] = !v;
@@ -345,29 +369,29 @@ fn ss_partition(
             }
             b -= 1;
             let v = sa[b];
-            if (pa_val(pa, pab, v) + depth) >= (pa_val(pa, pab, v + 1) + 1) {
+            if (pa_val(pa, pab, v) + depth) >= (pa_val(pa, pab, v + I::ONE) + I::ONE) {
                 break;
             }
         }
         if b <= a {
             break;
         }
-        let t = !sa[b];
+        let t = sa[b].bit_not();
         sa[b] = sa[a];
         sa[a] = t;
         a += 1;
     }
     if first < a {
-        sa[first] = !sa[first];
+        sa[first] = sa[first].bit_not();
     }
     a
 }
 
 #[derive(Clone, Copy, Default)]
-struct MiSortFrame {
+struct MiSortFrame<I: SaIndex> {
     first: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
     limit: i32,
 }
 
@@ -382,22 +406,22 @@ struct MiSortFrame {
 /// Returns `None` if partition is degenerate (no equal elements spanning both sides).
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn ss_three_way_partition(
+fn ss_three_way_partition<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
+    pa: &[I],
     pab: usize,
-    sa: &mut [i32],
+    sa: &mut [I],
     first: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
     v: i32,
 ) -> Option<(usize, usize, usize)> {
-    let td_offset = depth as usize;
+    let td_offset = depth.to_usize();
     // Left scan: for(b = first; (++b < last) && ((x = Td[PA[*b]]) == v);)
     let mut b = first + 1;
     let mut x = 0i32;
     while b < last {
-        x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+        x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
         if x != v {
             break;
         }
@@ -412,7 +436,7 @@ fn ss_three_way_partition(
             if b >= last {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+            x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
             if x > v {
                 break;
             }
@@ -432,7 +456,7 @@ fn ss_three_way_partition(
         if c <= b {
             break;
         }
-        x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+        x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
         if x != v {
             break;
         }
@@ -449,7 +473,7 @@ fn ss_three_way_partition(
             if c <= b {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+            x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
             if x < v {
                 break;
             }
@@ -468,7 +492,7 @@ fn ss_three_way_partition(
             if b >= c {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[b]) as usize] as i32;
+            x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
             if x > v {
                 break;
             }
@@ -486,7 +510,7 @@ fn ss_three_way_partition(
             if c <= b {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[c]) as usize] as i32;
+            x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
             if x < v {
                 break;
             }
@@ -523,7 +547,7 @@ fn ss_three_way_partition(
     let new_a = first + (b - a);
     let new_c = (last as i64 - dc) as usize;
 
-    let check_idx_ba = td_offset as i64 + pa_val(pa, pab, sa[new_a]) as i64 - 1;
+    let check_idx_ba = td_offset as i64 + pa_val(pa, pab, sa[new_a]).to_i64() - 1;
     let b2 = if v <= t[check_idx_ba as usize] as i32 {
         new_a
     } else {
@@ -538,22 +562,22 @@ fn ss_three_way_partition(
 /// Uses quicksort with 3-way partitioning (Bentley-McIlroy scheme),
 /// falling back to heapsort when the recursion depth limit is exhausted.
 /// Small ranges (≤ SS_INSERTIONSORT_THRESHOLD) use insertion sort.
-fn ss_mintrosort(
+fn ss_mintrosort<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
+    pa: &[I],
     pab: usize,
-    sa: &mut [i32],
+    sa: &mut [I],
     first: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) {
-    let mut stack = FixedStack::<MiSortFrame, { SS_MISORT_STACKSIZE }>::new();
+    let mut stack = FixedStack::<MiSortFrame<I>, { SS_MISORT_STACKSIZE }>::new();
     let pa_slice = &pa[pab..]; // for insertionsort (uses non-negative PAb indices)
 
     let mut first = first;
     let mut last = last;
     let mut depth = depth;
-    let mut limit = ss_ilg((last - first) as i32);
+    let mut limit = ss_ilg(last - first);
 
     loop {
         if last - first <= SS_INSERTIONSORT_THRESHOLD {
@@ -571,16 +595,16 @@ fn ss_mintrosort(
             continue;
         }
 
-        let td_offset = depth as usize;
+        let td_offset = depth.to_usize();
         limit -= 1;
         if limit == -1 {
             ss_heapsort(&t[td_offset..], pa, pab, sa, first, last - first);
         }
         if limit < 0 {
             let mut a = first + 1;
-            let mut v = t[td_offset + pa_val(pa, pab, sa[first]) as usize] as i32;
+            let mut v = t[td_offset + pa_val(pa, pab, sa[first]).to_usize()] as i32;
             while a < last {
-                let x = t[td_offset + pa_val(pa, pab, sa[a]) as usize] as i32;
+                let x = t[td_offset + pa_val(pa, pab, sa[a]).to_usize()] as i32;
                 if x != v {
                     if a - first > 1 {
                         break;
@@ -590,7 +614,7 @@ fn ss_mintrosort(
                 }
                 a += 1;
             }
-            let check_idx_hs = td_offset as i64 + pa_val(pa, pab, sa[first]) as i64 - 1;
+            let check_idx_hs = td_offset as i64 + pa_val(pa, pab, sa[first]).to_i64() - 1;
             if (t[check_idx_hs as usize] as i32) < v {
                 first = ss_partition(pa, pab, sa, first, a, depth);
             }
@@ -603,8 +627,8 @@ fn ss_mintrosort(
                         limit: -1,
                     });
                     last = a;
-                    depth += 1;
-                    limit = ss_ilg((a - first) as i32);
+                    depth += I::ONE;
+                    limit = ss_ilg(a - first);
                 } else {
                     first = a;
                     limit = -1;
@@ -613,21 +637,21 @@ fn ss_mintrosort(
                 stack.push(MiSortFrame {
                     first,
                     last: a,
-                    depth: depth + 1,
-                    limit: ss_ilg((a - first) as i32),
+                    depth: depth + I::ONE,
+                    limit: ss_ilg(a - first),
                 });
                 first = a;
                 limit = -1;
             } else {
                 last = a;
-                depth += 1;
-                limit = ss_ilg((a - first) as i32);
+                depth += I::ONE;
+                limit = ss_ilg(a - first);
             }
             continue;
         }
 
         let pivot_idx = ss_pivot_idx(&t[td_offset..], pa, pab, sa, first, last);
-        let v = t[td_offset + pa_val(pa, pab, sa[pivot_idx]) as usize] as i32;
+        let v = t[td_offset + pa_val(pa, pab, sa[pivot_idx]).to_usize()] as i32;
         sa.swap(first, pivot_idx);
 
         if let Some((new_a, b2, new_c)) =
@@ -640,8 +664,8 @@ fn ss_mintrosort(
                     stack.push(MiSortFrame {
                         first: b2,
                         last: new_c,
-                        depth: depth + 1,
-                        limit: ss_ilg((new_c - b2) as i32),
+                        depth: depth + I::ONE,
+                        limit: ss_ilg(new_c - b2),
                     });
                     stack.push(MiSortFrame {
                         first: new_c,
@@ -660,8 +684,8 @@ fn ss_mintrosort(
                     stack.push(MiSortFrame {
                         first: b2,
                         last: new_c,
-                        depth: depth + 1,
-                        limit: ss_ilg((new_c - b2) as i32),
+                        depth: depth + I::ONE,
+                        limit: ss_ilg(new_c - b2),
                     });
                     last = new_a;
                 } else {
@@ -679,15 +703,15 @@ fn ss_mintrosort(
                     });
                     first = b2;
                     last = new_c;
-                    depth += 1;
-                    limit = ss_ilg((new_c - b2) as i32);
+                    depth += I::ONE;
+                    limit = ss_ilg(new_c - b2);
                 }
             } else if new_a - first <= new_c - b2 {
                 stack.push(MiSortFrame {
                     first: b2,
                     last: new_c,
-                    depth: depth + 1,
-                    limit: ss_ilg((new_c - b2) as i32),
+                    depth: depth + I::ONE,
+                    limit: ss_ilg(new_c - b2),
                 });
                 stack.push(MiSortFrame {
                     first,
@@ -706,8 +730,8 @@ fn ss_mintrosort(
                 stack.push(MiSortFrame {
                     first: b2,
                     last: new_c,
-                    depth: depth + 1,
-                    limit: ss_ilg((new_c - b2) as i32),
+                    depth: depth + I::ONE,
+                    limit: ss_ilg(new_c - b2),
                 });
                 first = new_c;
             } else {
@@ -725,48 +749,48 @@ fn ss_mintrosort(
                 });
                 first = b2;
                 last = new_c;
-                depth += 1;
-                limit = ss_ilg((new_c - b2) as i32);
+                depth += I::ONE;
+                limit = ss_ilg(new_c - b2);
             }
         } else {
             limit += 1;
-            let check_idx_el = td_offset as i64 + pa_val(pa, pab, sa[first]) as i64 - 1;
+            let check_idx_el = td_offset as i64 + pa_val(pa, pab, sa[first]).to_i64() - 1;
             if (t[check_idx_el as usize] as i32) < v {
                 first = ss_partition(pa, pab, sa, first, last, depth);
-                limit = ss_ilg((last - first) as i32);
+                limit = ss_ilg(last - first);
             }
-            depth += 1;
+            depth += I::ONE;
         }
     }
 }
 
-fn ss_blockswap(sa: &mut [i32], a: usize, b: usize, n: usize) {
+fn ss_blockswap<I: SaIndex>(sa: &mut [I], a: usize, b: usize, n: usize) {
     for k in 0..n {
         sa.swap(a + k, b + k);
     }
 }
 
-fn ss_rotate(sa: &mut [i32], first: usize, middle: usize, last: usize) {
+fn ss_rotate<I: SaIndex>(sa: &mut [I], first: usize, middle: usize, last: usize) {
     sa[first..last].rotate_left(middle - first);
 }
 
 /// In-place merge of two adjacent sorted runs using binary search and rotation.
-fn ss_inplacemerge(
+fn ss_inplacemerge<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     first: usize,
     middle: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) {
     let mut middle = middle;
     let mut last = last;
     loop {
-        let (x, p) = if sa[last - 1] < 0 {
-            (1i32, !sa[last - 1] as usize)
+        let (x, p) = if sa[last - 1] < I::ZERO {
+            (1i32, sa[last - 1].bit_not().to_usize())
         } else {
-            (0i32, sa[last - 1] as usize)
+            (0i32, sa[last - 1].to_usize())
         };
 
         let mut a = first;
@@ -775,10 +799,10 @@ fn ss_inplacemerge(
         let mut r = -1i32;
         while 0 < len {
             let b = a + half as usize;
-            let bv = if sa[b] >= 0 {
-                sa[b] as usize
+            let bv = if sa[b] >= I::ZERO {
+                sa[b].to_usize()
             } else {
-                !sa[b] as usize
+                sa[b].bit_not().to_usize()
             };
             let q = ss_compare(t, pa, bv, pa, p, depth);
             if q < 0 {
@@ -792,7 +816,7 @@ fn ss_inplacemerge(
         }
         if a < middle {
             if r == 0 {
-                sa[a] = !sa[a];
+                sa[a] = sa[a].bit_not();
             }
             ss_rotate(sa, a, middle, last);
             last -= middle - a;
@@ -806,7 +830,7 @@ fn ss_inplacemerge(
             // C: `while (*--last < 0) {}` — decrement first, then read.
             loop {
                 last -= 1;
-                if sa[last] >= 0 {
+                if sa[last] >= I::ZERO {
                     break;
                 }
             }
@@ -830,13 +854,13 @@ struct BufInfo {
 
 /// Two-way merge in ascending direction using a temporary buffer.
 /// Merges sa[first..middle) and sa[middle..last) by copying the left half into `buf`.
-fn ss_mergeforward(
+fn ss_mergeforward<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     range: MergeRange,
     buf: usize,
-    depth: Depth,
+    depth: I,
 ) {
     let MergeRange {
         first,
@@ -852,7 +876,7 @@ fn ss_mergeforward(
     let tv = sa[a];
 
     loop {
-        let r = ss_compare(t, pa, sa[b] as usize, pa, sa[c] as usize, depth);
+        let r = ss_compare(t, pa, sa[b].to_usize(), pa, sa[c].to_usize(), depth);
         if r < 0 {
             loop {
                 sa[a] = sa[b];
@@ -863,7 +887,7 @@ fn ss_mergeforward(
                 }
                 sa[b] = sa[a];
                 b += 1;
-                if sa[b] >= 0 {
+                if sa[b] >= I::ZERO {
                     break;
                 }
             }
@@ -884,12 +908,12 @@ fn ss_mergeforward(
                     sa[b] = tv;
                     return;
                 }
-                if sa[c] >= 0 {
+                if sa[c] >= I::ZERO {
                     break;
                 }
             }
         } else {
-            sa[c] = !sa[c];
+            sa[c] = sa[c].bit_not();
             loop {
                 sa[a] = sa[b];
                 a += 1;
@@ -899,7 +923,7 @@ fn ss_mergeforward(
                 }
                 sa[b] = sa[a];
                 b += 1;
-                if sa[b] >= 0 {
+                if sa[b] >= I::ZERO {
                     break;
                 }
             }
@@ -919,7 +943,7 @@ fn ss_mergeforward(
                     sa[b] = tv;
                     return;
                 }
-                if sa[c] >= 0 {
+                if sa[c] >= I::ZERO {
                     break;
                 }
             }
@@ -936,8 +960,8 @@ const MERGE_MID_NEGATIVE: i32 = 2;
 /// position `src` toward `limit`, writing into `dest` (also moving backward).
 /// Returns the updated `(dest, src)` positions.
 #[inline(always)]
-const fn skip_negatives_backward(
-    sa: &mut [i32],
+fn skip_negatives_backward<I: SaIndex>(
+    sa: &mut [I],
     mut dest: usize,
     mut src: usize,
     limit: usize,
@@ -951,7 +975,7 @@ const fn skip_negatives_backward(
         } else {
             break;
         }
-        if sa[src] >= 0 {
+        if sa[src] >= I::ZERO {
             break;
         }
     }
@@ -960,13 +984,13 @@ const fn skip_negatives_backward(
 
 /// Two-way merge in descending direction using a temporary buffer.
 /// Merges sa[first..middle) and sa[middle..last) by copying the right half into `buf`.
-fn ss_mergebackward(
+fn ss_mergebackward<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     range: MergeRange,
     buf: usize,
-    depth: Depth,
+    depth: I,
 ) {
     let MergeRange {
         first,
@@ -977,17 +1001,17 @@ fn ss_mergebackward(
     ss_blockswap(sa, buf, middle, last - middle);
 
     let mut x = 0i32;
-    let p1 = if sa[bufend] < 0 {
+    let p1 = if sa[bufend] < I::ZERO {
         x |= MERGE_BUF_NEGATIVE;
-        !sa[bufend] as usize
+        sa[bufend].bit_not().to_usize()
     } else {
-        sa[bufend] as usize
+        sa[bufend].to_usize()
     };
-    let p2 = if sa[middle - 1] < 0 {
+    let p2 = if sa[middle - 1] < I::ZERO {
         x |= MERGE_MID_NEGATIVE;
-        !sa[middle - 1] as usize
+        sa[middle - 1].bit_not().to_usize()
     } else {
-        sa[middle - 1] as usize
+        sa[middle - 1].to_usize()
     };
 
     let tv = sa[last - 1];
@@ -1012,11 +1036,11 @@ fn ss_mergebackward(
             }
             b -= 1;
             sa[b + 1] = sa[a]; // *b-- = *a  (b already decremented, so b+1 = b_old)
-            p1 = if sa[b] < 0 {
+            p1 = if sa[b] < I::ZERO {
                 x |= MERGE_BUF_NEGATIVE;
-                !sa[b] as usize
+                sa[b].bit_not().to_usize()
             } else {
-                sa[b] as usize
+                sa[b].to_usize()
             };
         } else if r < 0 {
             if x & MERGE_MID_NEGATIVE != 0 {
@@ -1040,18 +1064,18 @@ fn ss_mergebackward(
                 break;
             }
             c -= 1;
-            p2 = if sa[c] < 0 {
+            p2 = if sa[c] < I::ZERO {
                 x |= MERGE_MID_NEGATIVE;
-                !sa[c] as usize
+                sa[c].bit_not().to_usize()
             } else {
-                sa[c] as usize
+                sa[c].to_usize()
             };
         } else {
             if x & MERGE_BUF_NEGATIVE != 0 {
                 (a, b) = skip_negatives_backward(sa, a, b, buf);
                 x ^= MERGE_BUF_NEGATIVE;
             }
-            sa[a] = !sa[b];
+            sa[a] = sa[b].bit_not();
             a = a.saturating_sub(1);
             if b <= buf {
                 sa[buf] = tv;
@@ -1080,17 +1104,17 @@ fn ss_mergebackward(
                 break;
             }
             c -= 1;
-            p1 = if sa[b] < 0 {
+            p1 = if sa[b] < I::ZERO {
                 x |= MERGE_BUF_NEGATIVE;
-                !sa[b] as usize
+                sa[b].bit_not().to_usize()
             } else {
-                sa[b] as usize
+                sa[b].to_usize()
             };
-            p2 = if sa[c] < 0 {
+            p2 = if sa[c] < I::ZERO {
                 x |= MERGE_MID_NEGATIVE;
-                !sa[c] as usize
+                sa[c].bit_not().to_usize()
             } else {
-                sa[c] as usize
+                sa[c].to_usize()
             };
         }
     }
@@ -1107,13 +1131,13 @@ struct SmergeFrame {
 /// Merge phase that combines sorted blocks using a temporary buffer.
 /// Chooses between forward merge, backward merge, and in-place merge
 /// based on block sizes and available buffer space.
-fn ss_swapmerge(
+fn ss_swapmerge<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     range: MergeRange,
     buf_info: BufInfo,
-    depth: Depth,
+    depth: I,
 ) {
     let BufInfo { buf, bufsize } = buf_info;
     let mut stack = FixedStack::<SmergeFrame, { SS_SMERGE_STACKSIZE }>::new();
@@ -1189,18 +1213,18 @@ fn ss_swapmerge(
         while 0 < len {
             let li = {
                 let vi = middle + m + half as usize;
-                if sa[vi] >= 0 {
-                    sa[vi] as usize
+                if sa[vi] >= I::ZERO {
+                    sa[vi].to_usize()
                 } else {
-                    !sa[vi] as usize
+                    sa[vi].bit_not().to_usize()
                 }
             };
             let ri = {
                 let vi2 = middle - m - half as usize - 1;
-                if sa[vi2] >= 0 {
-                    sa[vi2] as usize
+                if sa[vi2] >= I::ZERO {
+                    sa[vi2].to_usize()
                 } else {
-                    !sa[vi2] as usize
+                    sa[vi2].bit_not().to_usize()
                 }
             };
             if ss_compare(t, pa, li, pa, ri, depth) < 0 {
@@ -1219,15 +1243,15 @@ fn ss_swapmerge(
             let mut r = middle;
             let mut next = 0i32;
             if rm < last {
-                if sa[rm] < 0 {
-                    sa[rm] = !sa[rm];
+                if sa[rm] < I::ZERO {
+                    sa[rm] = sa[rm].bit_not();
                     if first < lm {
                         loop {
                             if l == 0 {
                                 break;
                             }
                             l -= 1;
-                            if sa[l] >= 0 {
+                            if sa[l] >= I::ZERO {
                                 break;
                             }
                         }
@@ -1235,7 +1259,7 @@ fn ss_swapmerge(
                     }
                     next |= 1;
                 } else if first < lm {
-                    while sa[r] < 0 {
+                    while sa[r] < I::ZERO {
                         r += 1;
                     }
                     next |= 2;
@@ -1272,11 +1296,11 @@ fn ss_swapmerge(
                 pa,
                 getidx(sa[middle - 1]),
                 pa,
-                sa[middle] as usize,
+                sa[middle].to_usize(),
                 depth,
             ) == 0
             {
-                sa[middle] = !sa[middle];
+                sa[middle] = sa[middle].bit_not();
             }
             merge_check(t, pa, sa, first, last, check, depth);
             if let Some(f) = stack.pop() {
@@ -1292,52 +1316,63 @@ fn ss_swapmerge(
 }
 
 #[inline(always)]
-const fn getidx(a: i32) -> usize {
-    if a >= 0 { a as usize } else { !a as usize }
+fn getidx<I: SaIndex>(a: I) -> usize {
+    if a >= I::ZERO {
+        a.to_usize()
+    } else {
+        a.bit_not().to_usize()
+    }
 }
 
 /// Post-merge verification: marks equal suffixes at merge boundaries with negative flags.
-const fn merge_check(
+fn merge_check<I: SaIndex>(
     t: &[u8],
-    pa: &[i32],
-    sa: &mut [i32],
+    pa: &[I],
+    sa: &mut [I],
     first: usize,
     last: usize,
     check: i32,
-    depth: Depth,
+    depth: I,
 ) {
     if (check & 1) != 0
         || ((check & 2) != 0
-            && ss_compare(t, pa, getidx(sa[first - 1]), pa, sa[first] as usize, depth) == 0)
+            && ss_compare(
+                t,
+                pa,
+                getidx(sa[first - 1]),
+                pa,
+                sa[first].to_usize(),
+                depth,
+            ) == 0)
     {
-        sa[first] = !sa[first];
+        sa[first] = sa[first].bit_not();
     }
     if (check & 4) != 0
-        && ss_compare(t, pa, getidx(sa[last - 1]), pa, sa[last] as usize, depth) == 0
+        && ss_compare(t, pa, getidx(sa[last - 1]), pa, sa[last].to_usize(), depth) == 0
     {
-        sa[last] = !sa[last];
+        sa[last] = sa[last].bit_not();
     }
 }
 
 /// Context for the B*-suffix sort, holding read-only references to text and PA array.
-pub struct SsortCtx<'a> {
+pub struct SsortCtx<'a, I: SaIndex> {
     pub t: &'a [u8],
     /// Read-only right-hand part of the suffix array (`sa[m..]`), which holds PAb.
     /// `pa[pab + i]` = PAb[i].
-    pub pa: &'a [i32],
+    pub pa: &'a [I],
     /// Offset of PAb within `pa` (= n - 2m, since PAb starts at `sa[n - m]`).
     pub pab: usize,
-    pub depth: Depth,
-    pub n: i32,
+    pub depth: I,
+    pub n: I,
 }
 
 /// Sorts B*-suffixes in sa[first..last) using introspective sort and block merging.
 ///
 /// This is the main entry point for the suffix-suffix sort phase.
 /// Called from `sort_typebstar` for each non-trivial bucket.
-pub fn sssort(
-    ctx: &SsortCtx,
-    sa: &mut [i32],
+pub fn sssort<I: SaIndex>(
+    ctx: &SsortCtx<I>,
+    sa: &mut [I],
     first: usize,
     last: usize,
     buf: usize,
@@ -1354,7 +1389,7 @@ pub fn sssort(
     // C: borrow the tail of the range as a buffer only if the caller's buffer is smaller
     // than both SS_BLOCKSIZE and isqrt(last - first).
     let borrow_limit = if (bufsize as usize) < SS_BLOCKSIZE && (bufsize as usize) < last - first {
-        let isqrt = ss_isqrt((last - first) as i32);
+        let isqrt = ss_isqrt(last - first);
         (bufsize < isqrt).then(|| isqrt.min(SS_BLOCKSIZE as i32))
     } else {
         None
@@ -1434,13 +1469,13 @@ pub fn sssort(
 
     if lastsuffix {
         let pai0 = pa_val(pa, pab, sa[first - 1]);
-        let pai1 = n - 2;
+        let pai1 = n - I::from_usize(2);
         // PAi = [pai0, pai1]: the lastsuffix B*-entry and its "next" boundary
         let pai = [pai0, pai1];
         let iv = sa[first - 1];
         let mut a2 = first;
         while a2 < last
-            && (sa[a2] < 0 || ss_compare(t, &pai, 0, pa_slice, sa[a2] as usize, depth) > 0)
+            && (sa[a2] < I::ZERO || ss_compare(t, &pai, 0, pa_slice, sa[a2].to_usize(), depth) > 0)
         {
             sa[a2 - 1] = sa[a2];
             a2 += 1;
@@ -1495,7 +1530,7 @@ mod tests {
         assert_eq!(ss_isqrt(100), 10);
         // boundary where x = y*y
         for y in 1..=32i32 {
-            let x = y * y;
+            let x = (y * y) as usize;
             assert_eq!(ss_isqrt(x), y, "ss_isqrt({x}) should be {y}");
             assert_eq!(
                 ss_isqrt(x - 1),
@@ -1545,7 +1580,7 @@ mod tests {
         // verify sorted by t[pa[pab + sa[i]]]
         for i in 1..6 {
             assert!(
-                t[pa[sa[i - 1] as usize] as usize] <= t[pa[sa[i] as usize] as usize],
+                t[pa[sa[i - 1].to_usize()] as usize] <= t[pa[sa[i].to_usize()] as usize],
                 "not sorted at {i}"
             );
         }
@@ -1565,14 +1600,14 @@ mod tests {
         ss_insertionsort_impl(t, &pa, &mut sa, 0, 4, 0);
         for i in 1..4 {
             let a = if sa[i - 1] >= 0 {
-                sa[i - 1] as usize
+                sa[i - 1].to_usize()
             } else {
-                !sa[i - 1] as usize
+                sa[i - 1].bit_not().to_usize()
             };
             let b = if sa[i] >= 0 {
-                sa[i] as usize
+                sa[i].to_usize()
             } else {
-                !sa[i] as usize
+                sa[i].bit_not().to_usize()
             };
             assert!(
                 ss_compare(t, &pa, a, &pa, b, 0) <= 0,

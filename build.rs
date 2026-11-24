@@ -21,6 +21,25 @@ fn main() {
             .define("PROJECT_VERSION_FULL", "\"2.0.2\"")
             .compile("divsufsort_c");
 
+        // 64-bit index variant (divsufsort64): the same sources built with
+        // BUILD_DIVSUFSORT64, which renames every symbol with a `64` suffix.
+        cc::Build::new()
+            .files([
+                "vendor/libdivsufsort/lib/divsufsort.c",
+                "vendor/libdivsufsort/lib/sssort.c",
+                "vendor/libdivsufsort/lib/trsort.c",
+                "vendor/libdivsufsort/lib/utils.c",
+            ])
+            .include("vendor/include")
+            .include("vendor/libdivsufsort/include")
+            .opt_level(3)
+            .define("HAVE_CONFIG_H", "1")
+            .define("BUILD_DIVSUFSORT64", "1")
+            // The vendored sufcheck prints saidx_t with a 32-bit format string; it is unused here.
+            .warnings(false)
+            .define("PROJECT_VERSION_FULL", "\"2.0.2\"")
+            .compile("divsufsort64_c");
+
         println!("cargo:rerun-if-changed=vendor/include");
         println!("cargo:rerun-if-changed=vendor/libdivsufsort");
     }

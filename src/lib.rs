@@ -9,11 +9,13 @@ mod constants;
 mod divsufsort;
 #[cfg(feature = "c-bench")]
 pub mod ffi;
+mod sa_index;
 mod sssort;
 mod trsort;
 mod utils;
 
 pub use divsufsort::{divbwt, divsufsort};
+pub use sa_index::SaIndex;
 pub use utils::{
     SufCheckError, bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck,
 };
@@ -28,7 +30,7 @@ struct ReadmeDoctests;
 pub enum DivSufSortError {
     /// A supplied argument is invalid (e.g. slice length mismatch or out-of-range index).
     InvalidArgument,
-    /// An internal allocation failed. Currently unused; reserved for future use.
+    /// An internal allocation failed (e.g. the scratch buffer of [`divbwt`] when no buffer is passed).
     AllocationFailure,
 }
 

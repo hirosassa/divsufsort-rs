@@ -1,6 +1,3 @@
-/// Comparison depth used throughout the suffix sorting algorithms.
-pub type Depth = i32;
-
 pub const ALPHABET_SIZE: usize = 256;
 pub const BUCKET_A_SIZE: usize = ALPHABET_SIZE;
 pub const BUCKET_B_SIZE: usize = ALPHABET_SIZE * ALPHABET_SIZE;

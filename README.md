@@ -9,7 +9,7 @@ Pure Rust port of [libdivsufsort](https://github.com/y-256/libdivsufsort) — a 
 
 ## What it does
 
-Constructs the **suffix array** of a byte string in O(n log n) time and 5n + O(1) memory space. A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
+Constructs the **suffix array** of a byte string in O(n log n) time and 5n + O(1) memory space (9n + O(1) with 64-bit indices, see [Input length and memory](#input-length-and-memory)). A suffix array is a sorted array of all suffixes of a string, and is a fundamental data structure for string search, data compression (BWT), and bioinformatics.
 
 The implementation closely follows [the original C library](https://github.com/y-256/libdivsufsort) by Yuta Mori.
 
@@ -47,7 +47,7 @@ When the `rayon` feature is disabled, B\*-bucket sorting runs sequentially.
 
 ```toml
 [dependencies]
-divsufsort-rs = "0.7"
+divsufsort-rs = "0.8"
 ```
 
 ```rust
@@ -69,10 +69,34 @@ use divsufsort_rs::divbwt;
 
 let text = b"banana";
 let mut bwt = vec![0u8; text.len()];
-let primary_index = divbwt(text, &mut bwt, None).unwrap();
+let primary_index = divbwt::<i32>(text, &mut bwt, None).unwrap();
 assert_eq!(&bwt, b"annbaa");
 assert_eq!(primary_index, 4);
 ```
+
+## Input length and memory
+
+The suffix array entry type is a type parameter of the public API: `i32` or `i64` (the sealed `SaIndex` trait). It is inferred from the slice you pass, so existing code using `i32` keeps working.
+
+| Index type | Maximum input length | Memory for `n` input bytes |
+|---|---|---|
+| `i32` | `i32::MAX` (2 GiB − 1) | 5n bytes (text `n` + suffix array `4n`) |
+| `i64` | `i64::MAX` (limited by RAM) | 9n bytes (text `n` + suffix array `8n`) |
+
+A 2 GiB input with `i64` needs about 19 GiB of RAM. Both functions return `DivSufSortError::InvalidArgument` when `t.len()` exceeds the maximum of the chosen index type.
+
+```rust
+use divsufsort_rs::divsufsort;
+
+let text = b"banana";
+let mut sa = vec![0i64; text.len()]; // 64-bit indices, for inputs longer than i32::MAX
+divsufsort(text, &mut sa).unwrap();
+assert_eq!(sa, [5, 3, 1, 0, 4, 2]);
+```
+
+`divbwt` returns the primary index as the same type, and cannot infer it from `None`, so name the type: `divbwt::<i32>(text, &mut bwt, None)` (or pass a scratch buffer, `Some(&mut scratch)`, whose element type decides). When no scratch buffer is passed, `divbwt` allocates `n` entries internally and returns `DivSufSortError::AllocationFailure` if that allocation fails.
+
+The `i64` suite runs the same tests as `i32`, and the two are compared entry by entry. Inputs larger than 2 GiB are covered by `#[ignore]`d tests in `tests/large_input.rs` that need 10–19 GiB of RAM; run them manually with `cargo test --release --test large_input -- --ignored`.
 
 ## Benchmark
 

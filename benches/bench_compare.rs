@@ -3,7 +3,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 #[cfg(feature = "c-bench")]
 use divsufsort_rs::divsufsort as divsufsort_rust;
 #[cfg(feature = "c-bench")]
-use divsufsort_rs::ffi::divsufsort_c;
+use divsufsort_rs::ffi::{divsufsort_c, divsufsort64_c};
 
 #[cfg(feature = "c-bench")]
 fn lcg_next(seed: &mut u64) -> u8 {
@@ -69,6 +69,20 @@ fn bench_compare(c: &mut Criterion) {
             b.iter(|| {
                 let mut sa = vec![0i32; data.len()];
                 divsufsort_c(data, &mut sa);
+            })
+        });
+
+        group.bench_with_input(BenchmarkId::new("rust_i64", SIZE), &data, |b, data| {
+            b.iter(|| {
+                let mut sa = vec![0i64; data.len()];
+                divsufsort_rust(data, &mut sa).unwrap();
+            })
+        });
+
+        group.bench_with_input(BenchmarkId::new("c_i64", SIZE), &data, |b, data| {
+            b.iter(|| {
+                let mut sa = vec![0i64; data.len()];
+                divsufsort64_c(data, &mut sa);
             })
         });
 

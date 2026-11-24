@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
+### Added
+- Suffix array entries can now be `i64`: the public API is generic over the new sealed `SaIndex` trait (implemented for `i32` and `i64`), lifting the input length limit from `i32::MAX` to `i64::MAX`. `i64` needs 9n bytes (`i32`: 5n); see the README
+- `bench_compare` also benchmarks the `i64` variant against the C `divsufsort64`; `bench_light` has an `i64` group; tests run for both index types, with `i32`/`i64` equivalence tests and `#[ignore]`d multi-gigabyte tests (`tests/large_input.rs`)
+
+### Migration from 0.7
+- `divsufsort(t, &mut sa)` keeps working with an `i32` slice (including `vec![0; n]`, which falls back to `i32`).
+- `divbwt(t, u, None)` no longer compiles because `I` cannot be inferred from `None`. Write `divbwt::<i32>(t, u, None)` to keep the old behaviour, or `divbwt::<i64>(t, u, None)` for inputs longer than `i32::MAX`. Passing `Some(&mut scratch)` still infers `I` from the scratch slice.
+- Code that stored the primary index from `divbwt` in an `i32` variable keeps working with `divbwt::<i32>`; with `i64` the returned primary index is an `i64`.
+
+### Changed
+- **Breaking:** `divsufsort`, `divbwt`, `sufcheck`, `sa_search`, `sa_simplesearch`, `bw_transform` and `inverse_bw_transform` are generic over `I: SaIndex`. `divsufsort(t, &mut sa)` with an `i32` slice infers as before, but `divbwt(t, u, None)` no longer infers `I`: write `divbwt::<i32>(t, u, None)`. The primary index returned by `divbwt` and used by `bw_transform`/`inverse_bw_transform`, and the `(count, left)` returned by the search functions, now have type `I`
+- `divbwt` allocates its scratch buffer with `try_reserve_exact` and returns `AllocationFailure` instead of aborting; the variant was previously unused
+- The `i32` code path is monomorphised and executes the same instructions as before (measured within ±2% wall time, see the PR)
+
 ### Fixed
-- `divsufsort` and `divbwt` now return `InvalidArgument` for inputs longer than `i32::MAX` bytes instead of silently truncating lengths to `i32` internally
+- `divsufsort` and `divbwt` now return `InvalidArgument` for inputs longer than the index type's maximum (`i32::MAX` for `i32`) instead of silently truncating lengths internally
+- `inverse_bw_transform` now returns `InvalidArgument` for inputs longer than `I::MAX`
 - `bw_transform` now returns `InvalidArgument` instead of panicking when a provided suffix array has an out-of-range entry or does not contain exactly one `0`
 - `inverse_bw_transform` now returns `InvalidArgument` when the output buffer `u` is shorter than the input, instead of silently truncating the result (or panicking for a one-byte input)
 
@@ -66,7 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow fixes (#2)
 - Reduce function complexity (#1)
 
-[Unreleased]: https://github.com/hirosassa/divsufsort-rs/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/hirosassa/divsufsort-rs/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/hirosassa/divsufsort-rs/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/hirosassa/divsufsort-rs/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/hirosassa/divsufsort-rs/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/hirosassa/divsufsort-rs/compare/v0.4.0...v0.5.0

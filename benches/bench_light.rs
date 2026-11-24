@@ -83,7 +83,7 @@ fn bench_divbwt_light(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
             b.iter_batched_ref(
                 || vec![0u8; data.len()],
-                |u| divbwt(data, u, None).unwrap(),
+                |u| divbwt::<i32>(data, u, None).unwrap(),
                 BatchSize::LargeInput,
             )
         });
@@ -92,5 +92,39 @@ fn bench_divbwt_light(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_divsufsort_light, bench_divbwt_light);
+/// Cost of the 64-bit index type relative to the `i32` groups above (same corpora and sizes).
+fn bench_divsufsort_i64_light(c: &mut Criterion) {
+    const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
+
+    type Corpus = fn(usize) -> Vec<u8>;
+    let corpora: &[(&str, Corpus)] = &[
+        ("i64_random_binary", corpus_random_binary),
+        ("i64_text_26", corpus_text),
+        ("i64_fibonacci", corpus_fibonacci),
+        ("i64_repeat", corpus_repeat),
+    ];
+    for &(name, func) in corpora {
+        let mut group = c.benchmark_group(name);
+        group.sample_size(10);
+        for &size in SIZES {
+            let data = func(size);
+            group.throughput(Throughput::Bytes(size as u64));
+            group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
+                b.iter_batched_ref(
+                    || vec![0i64; data.len()],
+                    |sa| divsufsort(data, sa).unwrap(),
+                    BatchSize::LargeInput,
+                )
+            });
+        }
+        group.finish();
+    }
+}
+
+criterion_group!(
+    benches,
+    bench_divsufsort_light,
+    bench_divbwt_light,
+    bench_divsufsort_i64_light
+);
 criterion_main!(benches);
