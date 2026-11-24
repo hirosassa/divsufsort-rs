@@ -1258,4 +1258,19 @@ mod tests {
         assert_eq!(&sa[2..4], &[0, 1]);
         assert_eq!(&isa[..2], &[2, 3]);
     }
+
+    #[test]
+    fn test_tr_ilg_covers_64_bit_sizes() {
+        assert_eq!(tr_ilg(0), -1);
+        assert_eq!(tr_ilg(1), 0);
+        assert_eq!(tr_ilg(255), 7);
+        assert_eq!(tr_ilg(256), 8);
+        assert_eq!(tr_ilg(u32::MAX as usize), 31);
+        #[cfg(target_pointer_width = "64")]
+        {
+            assert_eq!(tr_ilg(1usize << 32), 32);
+            assert_eq!(tr_ilg(1usize << 40), 40);
+            assert_eq!(tr_ilg(usize::MAX), 63);
+        }
+    }
 }

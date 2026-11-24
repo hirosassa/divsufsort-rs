@@ -1,7 +1,7 @@
 //! Pins the exact suffix array / BWT output for deterministic inputs, so that
 //! performance refactorings can be shown to leave the output unchanged.
 
-use divsufsort_rs::{divbwt, divsufsort};
+use divsufsort_rs::{SaIndex, divbwt, divsufsort};
 
 const fn lcg(state: &mut u64) -> u64 {
     *state = state
@@ -19,16 +19,26 @@ fn fnv1a(values: impl Iterator<Item = u64>) -> u64 {
     h
 }
 
-fn sa_checksum(t: &[u8]) -> u64 {
-    let mut sa = vec![0i32; t.len()];
+fn sa_checksum<I: SaIndex>(t: &[u8]) -> u64 {
+    let mut sa = vec![I::ZERO; t.len()];
     divsufsort(t, &mut sa).unwrap();
-    fnv1a(sa.iter().map(|&x| x as u64))
+    fnv1a(sa.iter().map(|&x| x.to_i64() as u64))
 }
 
-fn bwt_checksum(t: &[u8]) -> u64 {
+fn bwt_checksum<I: SaIndex>(t: &[u8]) -> u64 {
     let mut u = vec![0u8; t.len()];
-    let idx = divbwt::<i32>(t, &mut u, None).unwrap();
-    fnv1a(u.iter().map(|&x| x as u64).chain([idx as u64]))
+    let idx = divbwt::<I>(t, &mut u, None).unwrap();
+    fnv1a(u.iter().map(|&x| u64::from(x)).chain([idx.to_i64() as u64]))
+}
+
+fn combined_checksum<I: SaIndex>() -> u64 {
+    let mut sa_sums = Vec::new();
+    let mut bwt_sums = Vec::new();
+    for (_, t) in corpora() {
+        sa_sums.push(sa_checksum::<I>(&t));
+        bwt_sums.push(bwt_checksum::<I>(&t));
+    }
+    fnv1a(sa_sums.iter().chain(&bwt_sums).copied())
 }
 
 fn random(seed: u64, n: usize, alphabet: u64) -> Vec<u8> {
@@ -82,15 +92,22 @@ fn corpora() -> Vec<(&'static str, Vec<u8>)> {
 }
 
 #[test]
-fn sa_and_bwt_checksums_are_stable() {
-    let mut sa_sums = Vec::new();
-    let mut bwt_sums = Vec::new();
-    for (_, t) in corpora() {
-        sa_sums.push(sa_checksum(&t));
-        bwt_sums.push(bwt_checksum(&t));
-    }
-    let combined = fnv1a(sa_sums.iter().chain(&bwt_sums).copied());
-    assert_eq!(combined, EXPECTED, "SA/BWT output changed");
+fn sa_and_bwt_checksums_are_stable_i32() {
+    assert_eq!(
+        combined_checksum::<i32>(),
+        EXPECTED,
+        "SA/BWT output changed"
+    );
+}
+
+/// `i64` must produce exactly the same entries as `i32`, so it shares the pinned checksum.
+#[test]
+fn sa_and_bwt_checksums_are_stable_i64() {
+    assert_eq!(
+        combined_checksum::<i64>(),
+        EXPECTED,
+        "SA/BWT output changed"
+    );
 }
 
 const EXPECTED: u64 = 58_659_796_404_886_630;

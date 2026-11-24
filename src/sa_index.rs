@@ -91,3 +91,40 @@ macro_rules! impl_sa_index {
 
 impl_sa_index!(i32);
 impl_sa_index!(i64);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check<I: SaIndex>() {
+        assert_eq!(I::ZERO.to_i64(), 0);
+        assert_eq!(I::ONE.to_i64(), 1);
+        assert_eq!(I::from_usize(12345).to_usize(), 12345);
+        assert_eq!(I::from_isize(-7).to_isize(), -7);
+        assert_eq!(I::MAX.to_usize(), I::MAX.to_i64() as usize);
+        // `!x` flips the marker state: non-negative <-> negative, and is an involution.
+        let x = I::from_usize(42);
+        assert!(x.bit_not() < I::ZERO);
+        assert_eq!(x.bit_not().bit_not(), x);
+        assert_eq!(I::ZERO.bit_not().to_i64(), -1);
+    }
+
+    #[test]
+    fn test_sa_index_i32() {
+        check::<i32>();
+        assert_eq!(<i32 as SaIndex>::MAX.to_i64(), i64::from(i32::MAX));
+    }
+
+    #[test]
+    fn test_sa_index_i64() {
+        check::<i64>();
+        assert_eq!(<i64 as SaIndex>::MAX.to_i64(), i64::MAX);
+    }
+
+    #[test]
+    fn test_negative_to_usize_sign_extends_like_as() {
+        // Callers rely on `to_usize` matching `as usize` (a negative value wraps).
+        assert_eq!((-1i32).to_usize(), usize::MAX);
+        assert_eq!((-1i64).to_usize(), usize::MAX);
+    }
+}
