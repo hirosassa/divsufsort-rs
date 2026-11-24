@@ -90,3 +90,4 @@ macro_rules! impl_sa_index {
 }
 
 impl_sa_index!(i32);
+impl_sa_index!(i64);

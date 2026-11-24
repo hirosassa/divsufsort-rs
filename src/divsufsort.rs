@@ -533,6 +533,16 @@ fn validate_len<I: SaIndex>(n: usize) -> Result<(), DivSufSortError> {
     Ok(())
 }
 
+/// Allocates a zeroed scratch buffer of `n` entries, returning
+/// [`DivSufSortError::AllocationFailure`] instead of aborting when the allocation fails.
+fn alloc_zeroed_scratch<I: SaIndex>(n: usize) -> Result<Vec<I>, DivSufSortError> {
+    let mut v = Vec::new();
+    v.try_reserve_exact(n)
+        .map_err(|_| DivSufSortError::AllocationFailure)?;
+    v.resize(n, I::ZERO);
+    Ok(v)
+}
+
 /// Constructs the suffix array of `t` in O(n log n) time using the induced-sorting algorithm.
 ///
 /// On success, `sa[i]` holds the starting position of the `i`-th lexicographically
@@ -585,7 +595,9 @@ pub fn divsufsort<I: SaIndex>(t: &[u8], sa: &mut [I]) -> Result<(), DivSufSortEr
 /// # Errors
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a
-/// provided `a` buffer is too short, or if `t.len()` exceeds `I::MAX`.
+/// provided `a` buffer is too short, or if `t.len()` exceeds `I::MAX`. Returns
+/// [`DivSufSortError::AllocationFailure`] if the internal scratch buffer (`None` case) cannot
+/// be allocated.
 pub fn divbwt<I: SaIndex>(
     t: &[u8],
     u: &mut [u8],
@@ -612,15 +624,16 @@ pub fn divbwt<I: SaIndex>(
     {
         return Err(DivSufSortError::InvalidArgument);
     }
-    // Use the caller's scratch buffer when given; otherwise allocate one.
-    let mut owned = Vec::new();
-    let work: &mut [I] = a.map_or_else(
-        || {
-            owned.resize(n, I::ZERO);
+    // Use the caller's scratch buffer when given; otherwise allocate one, reporting a failed
+    // allocation instead of aborting (an `i64` scratch buffer needs 8 bytes per input byte).
+    let mut owned: Vec<I>;
+    let work: &mut [I] = match a {
+        Some(work) => &mut work[..n],
+        None => {
+            owned = alloc_zeroed_scratch(n)?;
             &mut owned[..]
-        },
-        |work| &mut work[..n],
-    );
+        }
+    };
     let m = sort_typebstar(t, work, &mut bkt_a, &mut bkt_b, n);
     let pidx = construct_bwt(t, work, &mut bkt_a, &mut bkt_b, n, m);
     u[0] = t[n - 1];
@@ -648,6 +661,29 @@ mod tests {
             validate_len::<i32>(i32::MAX as usize + 1),
             Err(DivSufSortError::InvalidArgument)
         );
+    }
+
+    #[test]
+    fn test_validate_len_i64_accepts_beyond_i32_max() {
+        assert_eq!(validate_len::<i64>(i32::MAX as usize + 1), Ok(()));
+    }
+
+    #[test]
+    fn test_alloc_zeroed_scratch_reports_allocation_failure() {
+        // usize::MAX entries overflows the maximum allocation size for both index types.
+        assert_eq!(
+            alloc_zeroed_scratch::<i32>(usize::MAX),
+            Err(DivSufSortError::AllocationFailure)
+        );
+        assert_eq!(
+            alloc_zeroed_scratch::<i64>(usize::MAX),
+            Err(DivSufSortError::AllocationFailure)
+        );
+    }
+
+    #[test]
+    fn test_alloc_zeroed_scratch_is_zeroed() {
+        assert_eq!(alloc_zeroed_scratch::<i64>(4), Ok(vec![0i64; 4]));
     }
 
     #[test]

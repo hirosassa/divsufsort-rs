@@ -30,7 +30,7 @@ struct ReadmeDoctests;
 pub enum DivSufSortError {
     /// A supplied argument is invalid (e.g. slice length mismatch or out-of-range index).
     InvalidArgument,
-    /// An internal allocation failed. Currently unused; reserved for future use.
+    /// An internal allocation failed (e.g. the scratch buffer of [`divbwt`] when no buffer is passed).
     AllocationFailure,
 }
 
