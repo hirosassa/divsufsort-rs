@@ -358,14 +358,14 @@ fn tr_partition<I: SaIndex>(
     }
 
     if a <= d {
-        // C: c = b - 1 (reset for blockswap)
-        let c_new = b - 1;
+        // C: c = b - 1 (reset for blockswap). Kept signed: with b == 0 the C pointer is -1.
+        let c_new = b as i64 - 1;
         let s = (a - first).min(b - a);
         for k in 0..s {
             sa.swap(first + k, b - s + k);
         }
         // C uses signed: if((s = d - c) > (t = last - d - 1)) { s = t; }
-        let dc = d as i64 - c_new as i64;
+        let dc = d as i64 - c_new;
         let ldd = last as i64 - d as i64 - 1;
         let s2 = if dc > 0 && ldd > 0 {
             dc.min(ldd) as usize
