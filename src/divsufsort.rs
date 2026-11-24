@@ -524,6 +524,14 @@ fn construct_bwt(
     orig
 }
 
+/// Rejects inputs whose length does not fit in `i32`, the index type used internally.
+const fn validate_len(n: usize) -> Result<(), DivSufSortError> {
+    if n > i32::MAX as usize {
+        return Err(DivSufSortError::InvalidArgument);
+    }
+    Ok(())
+}
+
 /// Constructs the suffix array of `t` in O(n log n) time using the induced-sorting algorithm.
 ///
 /// On success, `sa[i]` holds the starting position of the `i`-th lexicographically
@@ -531,9 +539,11 @@ fn construct_bwt(
 ///
 /// # Errors
 ///
-/// Returns [`DivSufSortError::InvalidArgument`] if `sa.len() != t.len()`.
+/// Returns [`DivSufSortError::InvalidArgument`] if `sa.len() != t.len()` or if `t.len()`
+/// exceeds `i32::MAX`.
 pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
     let n = t.len();
+    validate_len(n)?;
     if sa.len() != n {
         return Err(DivSufSortError::InvalidArgument);
     }
@@ -572,9 +582,10 @@ pub fn divsufsort(t: &[u8], sa: &mut [i32]) -> Result<(), DivSufSortError> {
 /// # Errors
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a
-/// provided `a` buffer is too short.
+/// provided `a` buffer is too short, or if `t.len()` exceeds `i32::MAX`.
 pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivSufSortError> {
     let n = t.len();
+    validate_len(n)?;
     if n == 0 {
         return Ok(0);
     }
@@ -621,6 +632,16 @@ pub fn divbwt(t: &[u8], u: &mut [u8], a: Option<&mut [i32]>) -> Result<i32, DivS
 mod tests {
     use super::*;
     use crate::utils::sufcheck;
+
+    #[test]
+    fn test_validate_len_rejects_over_i32_max() {
+        assert_eq!(validate_len(0), Ok(()));
+        assert_eq!(validate_len(i32::MAX as usize), Ok(()));
+        assert_eq!(
+            validate_len(i32::MAX as usize + 1),
+            Err(DivSufSortError::InvalidArgument)
+        );
+    }
 
     #[test]
     fn test_divsufsort_empty() {
