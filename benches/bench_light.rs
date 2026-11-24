@@ -96,7 +96,8 @@ fn bench_divbwt_light(c: &mut Criterion) {
 fn bench_divsufsort_i64_light(c: &mut Criterion) {
     const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
 
-    let corpora: &[(&str, fn(usize) -> Vec<u8>)] = &[
+    type Corpus = fn(usize) -> Vec<u8>;
+    let corpora: &[(&str, Corpus)] = &[
         ("i64_random_binary", corpus_random_binary),
         ("i64_text_26", corpus_text),
         ("i64_fibonacci", corpus_fibonacci),
