@@ -13,7 +13,7 @@ use crate::sa_index::SaIndex;
 /// Access PA (= SA[pab..]) at a possibly-negative index, replicating C's pointer arithmetic.
 /// In C: `PA[idx]` = `SA[pab + idx]`, even when idx is negative (equal-group markers).
 ///
-/// `pa` is the read-only slice `sa[m..]` and `pab` is the offset of PAb within it. A probe
+/// `pa` is the read-only slice `sa[m..]` and `pab` is the offset of `PAb` within it. A probe
 /// past the end of `pa` (the `ss_partition` boundary look-ahead of the last B*-suffix)
 /// reads as 0, which is what the zero sentinel `sa[n]` provides in C; it never touches
 /// memory outside `pa`.
@@ -51,7 +51,7 @@ fn ss_ilg(n: usize) -> i32 {
 }
 
 #[inline(always)]
-/// Integer square root using the SQQ_TABLE lookup, clamped to SS_BLOCKSIZE.
+/// Integer square root using the `SQQ_TABLE` lookup, clamped to `SS_BLOCKSIZE`.
 fn ss_isqrt(x: usize) -> i32 {
     let blocksize = SS_BLOCKSIZE as i32;
     if x >= SS_BLOCKSIZE * SS_BLOCKSIZE {
@@ -59,13 +59,13 @@ fn ss_isqrt(x: usize) -> i32 {
     }
     // x < SS_BLOCKSIZE^2 here, so it fits in i32 for every index type.
     let x = x as i32;
-    let e = if x & 0xffff0000u32 as i32 != 0 {
-        if x & 0xff000000u32 as i32 != 0 {
+    let e = if x & 0xffff_0000_u32 as i32 != 0 {
+        if x & 0xff00_0000_u32 as i32 != 0 {
             24 + LG_TABLE[((x >> 24) & 0xff) as usize]
         } else {
             16 + LG_TABLE[((x >> 16) & 0xff) as usize]
         }
-    } else if x & 0x0000ff00 != 0 {
+    } else if x & 0x0000_ff00 != 0 {
         8 + LG_TABLE[((x >> 8) & 0xff) as usize]
     } else {
         LG_TABLE[(x & 0xff) as usize]
@@ -86,9 +86,9 @@ fn ss_isqrt(x: usize) -> i32 {
     if x < y * y { y - 1 } else { y }
 }
 
-/// Corresponds to ss_compare in C.
-/// p1 and p2 are separate slices (for lastsuffix, PAi and PA are different slices).
-/// p1_idx and p2_idx are indices within their respective slices.
+/// Corresponds to `ss_compare` in C.
+/// p1 and p2 are separate slices (for lastsuffix, `PAi` and PA are different slices).
+/// `p1_idx` and `p2_idx` are indices within their respective slices.
 #[inline(always)]
 fn ss_compare<I: SaIndex>(
     t: &[u8],
@@ -112,7 +112,7 @@ fn ss_compare<I: SaIndex>(
 
     if u1 < u1n {
         if u2 < u2n {
-            t[u1] as i32 - t[u2] as i32
+            i32::from(t[u1]) - i32::from(t[u2])
         } else {
             1
         }
@@ -193,7 +193,7 @@ fn ss_fixdown<I: SaIndex>(
         let j1 = j + 1;
         let d = if j1 < size {
             let e = td[pa_val(pa, pab, sa[j1]).to_usize()];
-            if (d_k as i32) < (e as i32) {
+            if i32::from(d_k) < i32::from(e) {
                 k = j1;
                 e
             } else {
@@ -202,7 +202,7 @@ fn ss_fixdown<I: SaIndex>(
         } else {
             d_k
         };
-        if (d as i32) <= (c as i32) {
+        if i32::from(d) <= i32::from(c) {
             break;
         }
         sa[i] = sa[k];
@@ -337,7 +337,7 @@ fn ss_pivot_idx<I: SaIndex>(
 }
 
 /// Partitions [first..last) into two parts and returns the boundary index.
-/// `pa` is the read-only slice `sa[m..]`; `pab` is the offset of PAb within it.
+/// `pa` is the read-only slice `sa[m..]`; `pab` is the offset of `PAb` within it.
 #[inline]
 fn ss_partition<I: SaIndex>(
     pa: &[I],
@@ -399,13 +399,12 @@ struct MiSortFrame<I: SaIndex> {
 /// Assumes sa[first] already holds the pivot element (swapped there by the caller).
 ///
 /// Returns `Some((lt_end, eq_part, gt_start))` on success:
-///   - sa[first..lt_end]: elements < v
-///   - sa[lt_end..gt_start]: elements == v (eq_part is the ss_partition boundary within)
-///   - sa[gt_start..last]: elements > v
+///   - `sa[first..lt_end]`: elements < v
+///   - `sa[lt_end..gt_start]`: elements == v (`eq_part` is the `ss_partition` boundary within)
+///   - `sa[gt_start..last]`: elements > v
 ///
 /// Returns `None` if partition is degenerate (no equal elements spanning both sides).
 #[inline(always)]
-#[allow(clippy::too_many_arguments)]
 fn ss_three_way_partition<I: SaIndex>(
     t: &[u8],
     pa: &[I],
@@ -421,7 +420,7 @@ fn ss_three_way_partition<I: SaIndex>(
     let mut b = first + 1;
     let mut x = 0i32;
     while b < last {
-        x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
+        x = i32::from(t[td_offset + pa_val(pa, pab, sa[b]).to_usize()]);
         if x != v {
             break;
         }
@@ -436,7 +435,7 @@ fn ss_three_way_partition<I: SaIndex>(
             if b >= last {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
+            x = i32::from(t[td_offset + pa_val(pa, pab, sa[b]).to_usize()]);
             if x > v {
                 break;
             }
@@ -456,7 +455,7 @@ fn ss_three_way_partition<I: SaIndex>(
         if c <= b {
             break;
         }
-        x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
+        x = i32::from(t[td_offset + pa_val(pa, pab, sa[c]).to_usize()]);
         if x != v {
             break;
         }
@@ -473,7 +472,7 @@ fn ss_three_way_partition<I: SaIndex>(
             if c <= b {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
+            x = i32::from(t[td_offset + pa_val(pa, pab, sa[c]).to_usize()]);
             if x < v {
                 break;
             }
@@ -492,7 +491,7 @@ fn ss_three_way_partition<I: SaIndex>(
             if b >= c {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[b]).to_usize()] as i32;
+            x = i32::from(t[td_offset + pa_val(pa, pab, sa[b]).to_usize()]);
             if x > v {
                 break;
             }
@@ -510,7 +509,7 @@ fn ss_three_way_partition<I: SaIndex>(
             if c <= b {
                 break;
             }
-            x = t[td_offset + pa_val(pa, pab, sa[c]).to_usize()] as i32;
+            x = i32::from(t[td_offset + pa_val(pa, pab, sa[c]).to_usize()]);
             if x < v {
                 break;
             }
@@ -548,7 +547,7 @@ fn ss_three_way_partition<I: SaIndex>(
     let new_c = (last as i64 - dc) as usize;
 
     let check_idx_ba = td_offset as i64 + pa_val(pa, pab, sa[new_a]).to_i64() - 1;
-    let b2 = if v <= t[check_idx_ba as usize] as i32 {
+    let b2 = if v <= i32::from(t[check_idx_ba as usize]) {
         new_a
     } else {
         ss_partition(pa, pab, sa, new_a, new_c, depth)
@@ -561,7 +560,7 @@ fn ss_three_way_partition<I: SaIndex>(
 ///
 /// Uses quicksort with 3-way partitioning (Bentley-McIlroy scheme),
 /// falling back to heapsort when the recursion depth limit is exhausted.
-/// Small ranges (≤ SS_INSERTIONSORT_THRESHOLD) use insertion sort.
+/// Small ranges (≤ `SS_INSERTIONSORT_THRESHOLD`) use insertion sort.
 fn ss_mintrosort<I: SaIndex>(
     t: &[u8],
     pa: &[I],
@@ -602,9 +601,9 @@ fn ss_mintrosort<I: SaIndex>(
         }
         if limit < 0 {
             let mut a = first + 1;
-            let mut v = t[td_offset + pa_val(pa, pab, sa[first]).to_usize()] as i32;
+            let mut v = i32::from(t[td_offset + pa_val(pa, pab, sa[first]).to_usize()]);
             while a < last {
-                let x = t[td_offset + pa_val(pa, pab, sa[a]).to_usize()] as i32;
+                let x = i32::from(t[td_offset + pa_val(pa, pab, sa[a]).to_usize()]);
                 if x != v {
                     if a - first > 1 {
                         break;
@@ -615,7 +614,7 @@ fn ss_mintrosort<I: SaIndex>(
                 a += 1;
             }
             let check_idx_hs = td_offset as i64 + pa_val(pa, pab, sa[first]).to_i64() - 1;
-            if (t[check_idx_hs as usize] as i32) < v {
+            if i32::from(t[check_idx_hs as usize]) < v {
                 first = ss_partition(pa, pab, sa, first, a, depth);
             }
             if a - first <= last - a {
@@ -651,7 +650,7 @@ fn ss_mintrosort<I: SaIndex>(
         }
 
         let pivot_idx = ss_pivot_idx(&t[td_offset..], pa, pab, sa, first, last);
-        let v = t[td_offset + pa_val(pa, pab, sa[pivot_idx]).to_usize()] as i32;
+        let v = i32::from(t[td_offset + pa_val(pa, pab, sa[pivot_idx]).to_usize()]);
         sa.swap(first, pivot_idx);
 
         if let Some((new_a, b2, new_c)) =
@@ -755,7 +754,7 @@ fn ss_mintrosort<I: SaIndex>(
         } else {
             limit += 1;
             let check_idx_el = td_offset as i64 + pa_val(pa, pab, sa[first]).to_i64() - 1;
-            if (t[check_idx_el as usize] as i32) < v {
+            if i32::from(t[check_idx_el as usize]) < v {
                 first = ss_partition(pa, pab, sa, first, last, depth);
                 limit = ss_ilg(last - first);
             }
@@ -841,12 +840,14 @@ fn ss_inplacemerge<I: SaIndex>(
     }
 }
 
+#[derive(Clone, Copy)]
 struct MergeRange {
     first: usize,
     middle: usize,
     last: usize,
 }
 
+#[derive(Clone, Copy)]
 struct BufInfo {
     buf: usize,
     bufsize: usize,
@@ -1357,10 +1358,10 @@ fn merge_check<I: SaIndex>(
 /// Context for the B*-suffix sort, holding read-only references to text and PA array.
 pub struct SsortCtx<'a, I: SaIndex> {
     pub t: &'a [u8],
-    /// Read-only right-hand part of the suffix array (`sa[m..]`), which holds PAb.
-    /// `pa[pab + i]` = PAb[i].
+    /// Read-only right-hand part of the suffix array (`sa[m..]`), which holds `PAb`.
+    /// `pa[pab + i]` = `PAb[i]`.
     pub pa: &'a [I],
-    /// Offset of PAb within `pa` (= n - 2m, since PAb starts at `sa[n - m]`).
+    /// Offset of `PAb` within `pa` (= n - 2m, since `PAb` starts at `sa[n - m]`).
     pub pab: usize,
     pub depth: I,
     pub n: I,
@@ -1556,7 +1557,6 @@ mod tests {
         // T = "ba", PA = [1, 0] → depth=0
         // p1_idx=0: PA[0]=1, PA[1]=0 → U1=T[0+1]='a', U1n=T[0+2]=out of bound→2
         // p2_idx=1: PA[1]=0, PA[2] is out of range... extend PA
-        let _t = b"bab\x00"; // sentinel (unused; t2 below is used)
         let pa = [1i32, 0, 3]; // PA[0]=1, PA[1]=0, PA[2]=3(sentinel)
         // p1: U1=T[depth+PA[0]]=T[0+1]='a', U1n=T[PA[1]+2]=T[2]='b'
         // p2: U2=T[depth+PA[1]]=T[0+0]='b', U2n=T[PA[2]+2]=T[5] (out of bounds in t)

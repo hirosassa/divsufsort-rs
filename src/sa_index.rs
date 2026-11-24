@@ -53,6 +53,7 @@ pub trait SaIndex:
     fn from_isize(v: isize) -> Self;
     /// Bitwise NOT (`!x`), which flips the "marker" state of an entry.
     #[inline(always)]
+    #[must_use]
     fn bit_not(self) -> Self {
         !self
     }
@@ -75,7 +76,7 @@ macro_rules! impl_sa_index {
             }
             #[inline(always)]
             fn to_i64(self) -> i64 {
-                self as i64
+                i64::from(self)
             }
             #[inline(always)]
             fn from_usize(v: usize) -> Self {

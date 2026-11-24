@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
+
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use divsufsort_rs::{divbwt, divsufsort};
 
@@ -63,7 +71,7 @@ fn bench_divsufsort_light(c: &mut Criterion) {
                     || vec![0i32; data.len()],
                     |sa| divsufsort(data, sa).unwrap(),
                     BatchSize::LargeInput,
-                )
+                );
             });
         }
 
@@ -85,7 +93,7 @@ fn bench_divbwt_light(c: &mut Criterion) {
                 || vec![0u8; data.len()],
                 |u| divbwt::<i32>(data, u, None).unwrap(),
                 BatchSize::LargeInput,
-            )
+            );
         });
     }
 
@@ -114,7 +122,7 @@ fn bench_divsufsort_i64_light(c: &mut Criterion) {
                     || vec![0i64; data.len()],
                     |sa| divsufsort(data, sa).unwrap(),
                     BatchSize::LargeInput,
-                )
+                );
             });
         }
         group.finish();

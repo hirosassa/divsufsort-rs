@@ -528,8 +528,8 @@ struct TrSortState<'a> {
     trlink: &'a mut i32,
 }
 
-/// Handles the tandem repeat partition case (limit == -1) in tr_introsort.
-/// Returns `false` if tr_introsort should return (stack exhausted).
+/// Handles the tandem repeat partition case (limit == -1) in `tr_introsort`.
+/// Returns `false` if `tr_introsort` should return (stack exhausted).
 #[inline(always)]
 fn tr_handle_tandem_partition<I: SaIndex>(
     isa: &mut [I],
@@ -541,6 +541,10 @@ fn tr_handle_tandem_partition<I: SaIndex>(
     // SAFETY: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar), and the
     // `&mut isa` is not used while `isad_tandem` is live, so the shared reborrow is not
     // aliased by a writer. tr_partition only reads from isad_tandem and swaps elements in sa.
+    #[expect(
+        unsafe_code,
+        reason = "SAFETY: shared tail of `isa` that is not written while live (see comment above)"
+    )]
     let isad_tandem: &[I] = unsafe {
         let offset = *state.isad - incr;
         core::slice::from_raw_parts(isa.as_ptr().add(offset), isa.len() - offset)
@@ -620,8 +624,8 @@ fn tr_handle_tandem_partition<I: SaIndex>(
     true
 }
 
-/// Handles the negate/scan/budget case (limit < -2) in tr_introsort.
-/// Returns `false` if tr_introsort should return (stack exhausted).
+/// Handles the negate/scan/budget case (limit < -2) in `tr_introsort`.
+/// Returns `false` if `tr_introsort` should return (stack exhausted).
 #[inline(always)]
 fn tr_handle_negate_scan<I: SaIndex>(
     isa: &mut [I],
@@ -772,7 +776,11 @@ fn tr_introsort<I: SaIndex>(
                     return;
                 }
             } else if limit == -2 {
-                let popped = stack.pop().unwrap();
+                // Every `limit == -2` state is entered after a push, so the stack is never empty
+                // here; an empty stack ends the sort like the other pop sites in this function.
+                let Some(popped) = stack.pop() else {
+                    return;
+                };
                 let a = popped.first;
                 let b = popped.last;
                 let d_flag = popped.limit;
@@ -848,6 +856,10 @@ fn tr_introsort<I: SaIndex>(
         // isad_slice (= isa[isad..]) and swaps within sa; isa and sa are disjoint.
         // After tr_partition returns the slice is no longer live, so the subsequent reads
         // and writes to isa are safe with no aliased reference outstanding.
+        #[expect(
+            unsafe_code,
+            reason = "SAFETY: shared tail of `isa` that is not written while live (see comment above)"
+        )]
         let isad_slice: &[I] =
             unsafe { core::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad) };
         let (a, b) = tr_partition_owned(isad_slice, sa, first, first + 1, last, v);

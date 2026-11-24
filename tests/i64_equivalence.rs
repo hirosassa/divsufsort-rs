@@ -1,5 +1,12 @@
 //! Differential tests: the `i64` index type must behave exactly like `i32` for every
 //! public entry point, on inputs that both can represent.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
 
 use divsufsort_rs::{
     DivSufSortError, SaIndex, bw_transform, divbwt, divsufsort, inverse_bw_transform, sa_search,

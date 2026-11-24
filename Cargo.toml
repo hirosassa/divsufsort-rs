@@ -45,3 +45,45 @@ harness = false
 [[bench]]
 name = "bench_compare"
 harness = false
+
+[lints.rust]
+warnings = "deny"
+# deny (not forbid): FFI / slice reinterpretation need a few reviewed `#[expect(unsafe_code)]`.
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+unwrap_in_result = "deny"
+string_slice = "deny"
+allow_attributes_without_reason = "deny"
+allow_attributes = "warn"
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# 段階的な削減目標: suffix array カーネルは添字・算術・キャストが本質的に多く、
+# 一括で deny にすると性能とC実装との対応関係を損なう。ホットパス以外から順に
+# 個別の checked_* / TryFrom / .get() へ置き換え、削減できたら deny に格上げする。
+indexing_slicing = "allow"
+arithmetic_side_effects = "allow"
+as_conversions = "allow"
+
+# pedantic のうちカーネル特有のノイズ (C実装との対応・性能のためキャスト/短い名前/長大関数が不可避)。
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+too_many_lines = "allow"
+too_many_arguments = "allow"
+inline_always = "allow"
+# 制御構造の書き換えは C 実装との対応とコード生成に影響しうるため、ホットパスでは触らない。
+single_match_else = "allow"
+redundant_else = "allow"
+comparison_chain = "allow"
+if_not_else = "allow"

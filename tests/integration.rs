@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
+
 use divsufsort_rs::{SaIndex, divbwt, divsufsort, inverse_bw_transform, sufcheck};
 
 // Deterministic pseudo-random number generator using a simple LCG
@@ -76,7 +84,7 @@ macro_rules! integration_suite {
 
             /// Uses a large Fibonacci string over a binary alphabet ('a','b'), which concentrates
             /// nearly all B*-suffixes into a single bucket that exceeds the external buffer size.
-            /// This exercises the code path in ss_mergebackward where the next unsorted block is
+            /// This exercises the code path in `ss_mergebackward` where the next unsorted block is
             /// used as the temporary merge buffer (curbufsize > bufsize), validating the correctness
             /// of the cycle step `sa[X] = sa[a]` (a prior bug used `sa[a+1]`, causing duplicates).
             #[test]

@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreadable_literal,
+    reason = "test code"
+)]
+
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use divsufsort_rs::divsufsort;
 
@@ -75,7 +83,7 @@ fn bench_divsufsort(c: &mut Criterion) {
                 b.iter(|| {
                     let mut sa = vec![0i32; data.len()];
                     divsufsort(data, &mut sa).unwrap();
-                })
+                });
             });
         }
 

@@ -5,7 +5,6 @@
 //! 2. `construct_sa` / `construct_bwt` — induce the full SA or BWT from sorted B*-suffixes
 
 use alloc::boxed::Box;
-use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::DivSufSortError;
@@ -22,11 +21,13 @@ type BucketA<I> = [I; BUCKET_A_SIZE];
 type BucketB<I> = [I; BUCKET_B_SIZE];
 
 /// Allocates a zeroed fixed-size table on the heap (avoids a large stack temporary).
-fn zeroed_table<I: SaIndex, const N: usize>() -> Box<[I; N]> {
-    vec![I::ZERO; N]
+fn zeroed_table<I: SaIndex, const N: usize>() -> Result<Box<[I; N]>, DivSufSortError> {
+    // The slice length is N by construction, so the conversion cannot fail in practice; if it
+    // ever did, no table could be produced, which is reported like a failed allocation.
+    alloc_zeroed_scratch::<I>(N)?
         .into_boxed_slice()
         .try_into()
-        .unwrap_or_else(|_| unreachable!("a boxed slice of length N always converts to [I; N]"))
+        .map_err(|_| DivSufSortError::AllocationFailure)
 }
 
 #[inline(always)]
@@ -38,7 +39,7 @@ const fn bucket_a_mut<I: SaIndex>(ba: &mut BucketA<I>, c0: usize) -> &mut I {
     &mut ba[c0]
 }
 
-/// BUCKET_B(c0, c1) = bucket_B[(c1 << 8) | c0]
+/// `BUCKET_B(c0, c1) = bucket_B[(c1 << 8) | c0]`
 #[inline(always)]
 const fn bucket_b<I: SaIndex>(bb: &BucketB<I>, c0: usize, c1: usize) -> I {
     bb[(c1 << 8) | c0]
@@ -48,7 +49,7 @@ const fn bucket_b_mut<I: SaIndex>(bb: &mut BucketB<I>, c0: usize, c1: usize) -> 
     &mut bb[(c1 << 8) | c0]
 }
 
-/// BUCKET_BSTAR(c0, c1) = bucket_B[(c0 << 8) | c1]
+/// `BUCKET_BSTAR(c0, c1) = bucket_B[(c0 << 8) | c1]`
 #[inline(always)]
 const fn bucket_bstar<I: SaIndex>(bb: &BucketB<I>, c0: usize, c1: usize) -> I {
     bb[(c0 << 8) | c1]
@@ -190,7 +191,7 @@ fn scatter_bstar_to_sa<I: SaIndex>(t: &[u8], sa: &mut [I], isab: usize, n: usize
 }
 
 /// Copies sorted B*-suffixes into their final bucket positions and updates
-/// bucket boundaries for the subsequent construct_sa/construct_bwt phase.
+/// bucket boundaries for the subsequent `construct_sa`/`construct_bwt` phase.
 #[inline(always)]
 fn place_sorted_bstar_in_buckets<I: SaIndex>(
     sa: &mut [I],
@@ -568,14 +569,14 @@ pub fn divsufsort<I: SaIndex>(t: &[u8], sa: &mut [I]) -> Result<(), DivSufSortEr
         return Ok(());
     }
     if n == 2 {
-        let m = (t[0] < t[1]) as usize;
+        let m = usize::from(t[0] < t[1]);
         sa[m ^ 1] = I::ZERO;
         sa[m] = I::ONE;
         return Ok(());
     }
 
-    let mut bkt_a = zeroed_table::<I, BUCKET_A_SIZE>();
-    let mut bkt_b = zeroed_table::<I, BUCKET_B_SIZE>();
+    let mut bkt_a = zeroed_table::<I, BUCKET_A_SIZE>()?;
+    let mut bkt_b = zeroed_table::<I, BUCKET_B_SIZE>()?;
 
     let m = sort_typebstar(t, sa, &mut bkt_a, &mut bkt_b, n);
     construct_sa(t, sa, &mut bkt_a, &mut bkt_b, n, m);
@@ -616,8 +617,8 @@ pub fn divbwt<I: SaIndex>(
         return Ok(I::ONE);
     }
 
-    let mut bkt_a = zeroed_table::<I, BUCKET_A_SIZE>();
-    let mut bkt_b = zeroed_table::<I, BUCKET_B_SIZE>();
+    let mut bkt_a = zeroed_table::<I, BUCKET_A_SIZE>()?;
+    let mut bkt_b = zeroed_table::<I, BUCKET_B_SIZE>()?;
 
     if let Some(work) = &a
         && work.len() < n
@@ -649,9 +650,11 @@ pub fn divbwt<I: SaIndex>(
 }
 
 #[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "test code")]
 mod tests {
     use super::*;
     use crate::utils::sufcheck;
+    use alloc::vec;
 
     #[test]
     fn test_validate_len_rejects_over_i32_max() {
