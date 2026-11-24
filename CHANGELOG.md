@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Suffix array entries can now be `i64`: the public API is generic over the new sealed `SaIndex` trait (implemented for `i32` and `i64`), lifting the input length limit from `i32::MAX` to `i64::MAX`. `i64` needs 9n bytes (`i32`: 5n); see the README
+- `bench_light` has an `i64` group; tests run for both index types, with `i32`/`i64` equivalence tests and `#[ignore]`d multi-gigabyte tests (`tests/large_input.rs`)
+
+### Changed
+- **Breaking:** `divsufsort`, `divbwt`, `sufcheck`, `sa_search`, `sa_simplesearch`, `bw_transform` and `inverse_bw_transform` are generic over `I: SaIndex`. `divsufsort(t, &mut sa)` with an `i32` slice infers as before, but `divbwt(t, u, None)` no longer infers `I`: write `divbwt::<i32>(t, u, None)`. The primary index returned by `divbwt` and used by `bw_transform`/`inverse_bw_transform`, and the `(count, left)` returned by the search functions, now have type `I`
+- `divbwt` allocates its scratch buffer with `try_reserve_exact` and returns `AllocationFailure` instead of aborting; the variant was previously unused
+- The `i32` code path is monomorphised and executes the same instructions as before (measured within ±2% wall time, see the PR)
+
 ### Fixed
-- `divsufsort` and `divbwt` now return `InvalidArgument` for inputs longer than `i32::MAX` bytes instead of silently truncating lengths to `i32` internally
+- `divsufsort` and `divbwt` now return `InvalidArgument` for inputs longer than the index type's maximum (`i32::MAX` for `i32`) instead of silently truncating lengths internally
+- `inverse_bw_transform` now returns `InvalidArgument` for inputs longer than `I::MAX`
 - `bw_transform` now returns `InvalidArgument` instead of panicking when a provided suffix array has an out-of-range entry or does not contain exactly one `0`
 - `inverse_bw_transform` now returns `InvalidArgument` when the output buffer `u` is shorter than the input, instead of silently truncating the result (or panicking for a one-byte input)
 
