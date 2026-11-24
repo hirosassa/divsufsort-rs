@@ -69,7 +69,7 @@ use divsufsort_rs::divbwt;
 
 let text = b"banana";
 let mut bwt = vec![0u8; text.len()];
-let primary_index = divbwt(text, &mut bwt, None).unwrap();
+let primary_index = divbwt::<i32>(text, &mut bwt, None).unwrap();
 assert_eq!(&bwt, b"annbaa");
 assert_eq!(primary_index, 4);
 ```

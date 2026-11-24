@@ -4,18 +4,29 @@
 //! relative order by comparing at increasing depths (doubling the ISA offset).
 //! Uses introspective sort with budget-based recursion control to avoid O(n²) worst case.
 
-use crate::constants::{Depth, FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
+use crate::constants::{FixedStack, LG_TABLE, TR_INSERTIONSORT_THRESHOLD, TR_STACKSIZE};
+use crate::sa_index::SaIndex;
 
 #[inline(always)]
-/// Integer log2 for 32-bit values, using the lookup table.
-fn tr_ilg(n: i32) -> i32 {
-    if n & 0xffff0000u32 as i32 != 0 {
-        if n & 0xff000000u32 as i32 != 0 {
+/// Integer log2 using the lookup table (handles up to 64-bit sizes; the result is at most 63).
+fn tr_ilg(n: usize) -> i32 {
+    let n = n as u64;
+    if n >> 32 != 0 {
+        32 + tr_ilg32((n >> 32) as u32)
+    } else {
+        tr_ilg32(n as u32)
+    }
+}
+
+#[inline(always)]
+fn tr_ilg32(n: u32) -> i32 {
+    if n & 0xffff_0000 != 0 {
+        if n & 0xff00_0000 != 0 {
             24 + LG_TABLE[((n >> 24) & 0xff) as usize]
         } else {
             16 + LG_TABLE[((n >> 16) & 0xff) as usize]
         }
-    } else if n & 0x0000ff00 != 0 {
+    } else if n & 0x0000_ff00 != 0 {
         8 + LG_TABLE[((n >> 8) & 0xff) as usize]
     } else {
         LG_TABLE[(n & 0xff) as usize]
@@ -24,7 +35,7 @@ fn tr_ilg(n: i32) -> i32 {
 
 /// Insertion sort for small ranges, skipping negative group markers during shifts.
 #[inline]
-const fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usize) {
+fn tr_insertionsort<I: SaIndex>(isad: &[I], sa: &mut [I], first: usize, last: usize) {
     // C: for(a = first + 1; a < last; ++a) {
     //      for(t = *a, b = a - 1; 0 > (r = ISAd[t] - ISAd[*b]);) {
     //        do { *(b + 1) = *b; } while((first <= --b) && (*b < 0));
@@ -39,24 +50,24 @@ const fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usiz
     while a < last as isize {
         let t = sa[a as usize];
         let mut b = a - 1; // b = a - 1 (always >= first since a > first)
-        let mut r = 0i32;
+        let mut r = I::ZERO;
         while b >= first_i {
-            r = isad[t as usize] - isad[sa[b as usize] as usize];
-            if r >= 0 {
+            r = isad[t.to_usize()] - isad[sa[b as usize].to_usize()];
+            if r >= I::ZERO {
                 break;
             }
             // C: do { *(b+1) = *b; } while((first <= --b) && (*b < 0))
             sa[(b + 1) as usize] = sa[b as usize]; // shift non-negative element
             b -= 1;
             // skip (shift) contiguous negative elements
-            while b >= first_i && sa[b as usize] < 0 {
+            while b >= first_i && sa[b as usize] < I::ZERO {
                 sa[(b + 1) as usize] = sa[b as usize];
                 b -= 1;
             }
-            // after: b < first_i OR sa[b] >= 0
+            // after: b < first_i OR sa[b] >= I::ZERO
         }
-        if r == 0 && b >= 0 {
-            sa[b as usize] = !sa[b as usize];
+        if r == I::ZERO && b >= 0 {
+            sa[b as usize] = sa[b as usize].bit_not();
         }
         sa[(b + 1) as usize] = t;
         a += 1;
@@ -65,19 +76,19 @@ const fn tr_insertionsort(isad: &[i32], sa: &mut [i32], first: usize, last: usiz
 
 // first is the absolute index of the heap root.
 // child node absolute index: j = 2*(i - first) + 1 + first = 2*i - first + 1
-const fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, size: usize) {
+fn tr_fixdown<I: SaIndex>(isad: &[I], sa: &mut [I], first: usize, mut i: usize, size: usize) {
     let v = sa[i];
-    let c = isad[v as usize];
+    let c = isad[v.to_usize()];
     loop {
         let j = 2 * i - first + 1;
         if j >= size {
             break;
         }
         let mut k = j;
-        let d_k = isad[sa[k] as usize];
+        let d_k = isad[sa[k].to_usize()];
         let j1 = j + 1;
         let d = if j1 < size {
-            let e = isad[sa[j1] as usize];
+            let e = isad[sa[j1].to_usize()];
             if d_k < e {
                 k = j1;
                 e
@@ -97,11 +108,11 @@ const fn tr_fixdown(isad: &[i32], sa: &mut [i32], first: usize, mut i: usize, si
 }
 
 /// Heapsort fallback for `tr_introsort` when the recursion limit is exhausted.
-const fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
+fn tr_heapsort<I: SaIndex>(isad: &[I], sa: &mut [I], first: usize, size: usize) {
     let mut m = size;
     if size.is_multiple_of(2) {
         m -= 1;
-        if isad[sa[first + m / 2] as usize] < isad[sa[first + m] as usize] {
+        if isad[sa[first + m / 2].to_usize()] < isad[sa[first + m].to_usize()] {
             sa.swap(first + m, first + m / 2);
         }
     }
@@ -130,18 +141,18 @@ const fn tr_heapsort(isad: &[i32], sa: &mut [i32], first: usize, size: usize) {
 }
 
 #[inline(always)]
-const fn tr_median3_idx(
-    isad: &[i32],
-    sa: &[i32],
+fn tr_median3_idx<I: SaIndex>(
+    isad: &[I],
+    sa: &[I],
     mut v1: usize,
     mut v2: usize,
     v3: usize,
 ) -> usize {
-    if isad[sa[v1] as usize] > isad[sa[v2] as usize] {
+    if isad[sa[v1].to_usize()] > isad[sa[v2].to_usize()] {
         core::mem::swap(&mut v1, &mut v2);
     }
-    if isad[sa[v2] as usize] > isad[sa[v3] as usize] {
-        if isad[sa[v1] as usize] > isad[sa[v3] as usize] {
+    if isad[sa[v2].to_usize()] > isad[sa[v3].to_usize()] {
+        if isad[sa[v1].to_usize()] > isad[sa[v3].to_usize()] {
             return v1;
         } else {
             return v3;
@@ -151,33 +162,33 @@ const fn tr_median3_idx(
 }
 
 #[inline(always)]
-const fn tr_median5_idx(
-    isad: &[i32],
-    sa: &[i32],
+fn tr_median5_idx<I: SaIndex>(
+    isad: &[I],
+    sa: &[I],
     mut v1: usize,
     mut v2: usize,
     mut v3: usize,
     mut v4: usize,
     mut v5: usize,
 ) -> usize {
-    if isad[sa[v2] as usize] > isad[sa[v3] as usize] {
+    if isad[sa[v2].to_usize()] > isad[sa[v3].to_usize()] {
         core::mem::swap(&mut v2, &mut v3);
     }
-    if isad[sa[v4] as usize] > isad[sa[v5] as usize] {
+    if isad[sa[v4].to_usize()] > isad[sa[v5].to_usize()] {
         core::mem::swap(&mut v4, &mut v5);
     }
-    if isad[sa[v2] as usize] > isad[sa[v4] as usize] {
+    if isad[sa[v2].to_usize()] > isad[sa[v4].to_usize()] {
         core::mem::swap(&mut v2, &mut v4);
         core::mem::swap(&mut v3, &mut v5);
     }
-    if isad[sa[v1] as usize] > isad[sa[v3] as usize] {
+    if isad[sa[v1].to_usize()] > isad[sa[v3].to_usize()] {
         core::mem::swap(&mut v1, &mut v3);
     }
-    if isad[sa[v1] as usize] > isad[sa[v4] as usize] {
+    if isad[sa[v1].to_usize()] > isad[sa[v4].to_usize()] {
         core::mem::swap(&mut v1, &mut v4);
         core::mem::swap(&mut v3, &mut v5);
     }
-    if isad[sa[v3] as usize] > isad[sa[v4] as usize] {
+    if isad[sa[v3].to_usize()] > isad[sa[v4].to_usize()] {
         v4
     } else {
         v3
@@ -185,7 +196,7 @@ const fn tr_median5_idx(
 }
 
 /// Selects a pivot index using median-of-3 or median-of-5 depending on range size.
-const fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> usize {
+fn tr_pivot_idx<I: SaIndex>(isad: &[I], sa: &[I], first: usize, last: usize) -> usize {
     let t = (last - first) as i32;
     let middle = first + (t / 2) as usize;
     if t <= 512 {
@@ -206,25 +217,25 @@ const fn tr_pivot_idx(isad: &[i32], sa: &[i32], first: usize, last: usize) -> us
 
 /// Budget-based recursion control for `tr_introsort`.
 /// Limits the total work to prevent O(n²) worst case on degenerate inputs.
-struct TrBudget {
+struct TrBudget<I: SaIndex> {
     chance: i32,
-    remain: i32,
-    incval: i32,
-    pub count: i32,
+    remain: I,
+    incval: I,
+    pub count: I,
 }
 
-impl TrBudget {
-    const fn new(chance: i32, incval: i32) -> Self {
+impl<I: SaIndex> TrBudget<I> {
+    const fn new(chance: i32, incval: I) -> Self {
         Self {
             chance,
             remain: incval,
             incval,
-            count: 0,
+            count: I::ZERO,
         }
     }
 
     #[inline(always)]
-    const fn check(&mut self, size: i32) -> bool {
+    fn check(&mut self, size: I) -> bool {
         if size <= self.remain {
             self.remain -= size;
             return true;
@@ -240,18 +251,18 @@ impl TrBudget {
 }
 
 /// Partitions [first..last) into three parts using v as pivot; returns the equal-range as [*pa..*pb).
-fn tr_partition(
-    isad: &[i32],
-    sa: &mut [i32],
+fn tr_partition<I: SaIndex>(
+    isad: &[I],
+    sa: &mut [I],
     first: usize,
     middle: usize,
     last: usize,
-    v: i32,
+    v: I,
 ) -> (usize, usize) {
     let mut b = middle;
-    let mut x = 0i32;
+    let mut x = I::ZERO;
     while b < last {
-        x = isad[sa[b] as usize];
+        x = isad[sa[b].to_usize()];
         if x != v {
             break;
         }
@@ -261,7 +272,7 @@ fn tr_partition(
     if a < last && x < v {
         b += 1;
         while b < last {
-            x = isad[sa[b] as usize];
+            x = isad[sa[b].to_usize()];
             if x > v {
                 break;
             }
@@ -282,7 +293,7 @@ fn tr_partition(
         if c <= b {
             break;
         } // b < --c failed
-        x = isad[sa[c] as usize];
+        x = isad[sa[c].to_usize()];
         if x != v {
             break;
         }
@@ -298,7 +309,7 @@ fn tr_partition(
             if c <= b {
                 break;
             }
-            x = isad[sa[c] as usize];
+            x = isad[sa[c].to_usize()];
             if x < v {
                 break;
             }
@@ -317,7 +328,7 @@ fn tr_partition(
             if b >= c {
                 break;
             }
-            x = isad[sa[b] as usize];
+            x = isad[sa[b].to_usize()];
             if x > v {
                 break;
             }
@@ -335,7 +346,7 @@ fn tr_partition(
             if c <= b {
                 break;
             }
-            x = isad[sa[c] as usize];
+            x = isad[sa[c].to_usize()];
             if x < v {
                 break;
             }
@@ -374,25 +385,25 @@ fn tr_partition(
 
 /// Copies sorted suffix positions from sa[a..b) back into the full range sa[first..last),
 /// updating ISA group labels.
-const fn tr_copy(
-    isa: &mut [i32],
-    sa: &mut [i32],
+fn tr_copy<I: SaIndex>(
+    isa: &mut [I],
+    sa: &mut [I],
     first: usize,
     a: usize,
     b: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) {
-    let v = (b as i32) - 1; // b - SA - 1 where SA=0
+    let v = I::from_usize(b) - I::ONE; // b - SA - 1 where SA=0
     // C: for(c = first, d = a - 1; c <= d; ++c) { if(...) { *++d = s; ISA[s] = d - SA; } }
     // Rust: d starts at a (= C's d+1), write at d then d++; loop while c < d (= C's c <= d)
     let mut d = a;
     let mut c = first;
     while c < d {
         let s = sa[c] - depth;
-        if s >= 0 && isa[s as usize] == v {
+        if s >= I::ZERO && isa[s.to_usize()] == v {
             sa[d] = s;
-            isa[s as usize] = d as i32;
+            isa[s.to_usize()] = I::from_usize(d);
             d += 1;
         }
         c += 1;
@@ -409,10 +420,10 @@ const fn tr_copy(
                 break;
             } // C condition: e < d
             let s = sa[c2] - depth;
-            if s >= 0 && isa[s as usize] == v {
+            if s >= I::ZERO && isa[s.to_usize()] == v {
                 d2 -= 1;
                 sa[d2] = s;
-                isa[s as usize] = d2 as i32;
+                isa[s.to_usize()] = I::from_usize(d2);
             }
             if c2 == 0 {
                 break;
@@ -424,55 +435,55 @@ const fn tr_copy(
 
 /// Partial copy variant of `tr_copy`, used when budget is exhausted (trlink == -1).
 /// Creates new equal-group runs where exact ordering could not be determined.
-const fn tr_partialcopy(
-    isa: &mut [i32],
-    sa: &mut [i32],
+fn tr_partialcopy<I: SaIndex>(
+    isa: &mut [I],
+    sa: &mut [I],
     first: usize,
     a: usize,
     b: usize,
     last: usize,
-    depth: Depth,
+    depth: I,
 ) {
-    let v = (b as i32) - 1;
+    let v = I::from_usize(b) - I::ONE;
     // C: for(c = first, d = a - 1; c <= d; ++c) — d extends dynamically
     let mut d = a;
-    let mut lastrank = -1i32;
-    let mut newrank = -1i32;
+    let mut lastrank = I::ZERO - I::ONE;
+    let mut newrank = I::ZERO - I::ONE;
     let mut c = first;
     while c < d {
         let s = sa[c] - depth;
-        if s >= 0 && isa[s as usize] == v {
+        if s >= I::ZERO && isa[s.to_usize()] == v {
             sa[d] = s;
-            let rank = isa[(s + depth) as usize];
+            let rank = isa[(s + depth).to_usize()];
             if lastrank != rank {
                 lastrank = rank;
-                newrank = d as i32;
+                newrank = I::from_usize(d);
             }
-            isa[s as usize] = newrank;
+            isa[s.to_usize()] = newrank;
             d += 1;
         }
         c += 1;
     }
 
     // C: for(e = d; first <= e; --e) — processes [first, d] inclusive (C's d = Rust's d-1)
-    lastrank = -1;
+    lastrank = I::ZERO - I::ONE;
     let mut e = d;
     while e > first {
         e -= 1;
-        let rank = isa[sa[e] as usize];
+        let rank = isa[sa[e].to_usize()];
         if lastrank != rank {
             lastrank = rank;
-            newrank = e as i32;
+            newrank = I::from_usize(e);
         }
         if newrank != rank {
-            isa[sa[e] as usize] = newrank;
+            isa[sa[e].to_usize()] = newrank;
         }
     }
 
     // C: for(c = last - 1, e = d + 1, d = b; e < d; --c)
     // C starts at d = b and pre-decrements, so the first write lands at b - 1.
     // Rust e2 = C's (d+1) from the first loop.
-    lastrank = -1;
+    lastrank = I::ZERO - I::ONE;
     let e2 = d;
     let mut d2 = b;
     if last > 0 {
@@ -482,15 +493,15 @@ const fn tr_partialcopy(
                 break;
             } // C condition: e < d
             let s = sa[c2] - depth;
-            if s >= 0 && isa[s as usize] == v {
+            if s >= I::ZERO && isa[s.to_usize()] == v {
                 d2 -= 1;
                 sa[d2] = s;
-                let rank = isa[(s + depth) as usize];
+                let rank = isa[(s + depth).to_usize()];
                 if lastrank != rank {
                     lastrank = rank;
-                    newrank = d2 as i32;
+                    newrank = I::from_usize(d2);
                 }
-                isa[s as usize] = newrank;
+                isa[s.to_usize()] = newrank;
             }
             if c2 == 0 {
                 break;
@@ -520,9 +531,9 @@ struct TrSortState<'a> {
 /// Handles the tandem repeat partition case (limit == -1) in tr_introsort.
 /// Returns `false` if tr_introsort should return (stack exhausted).
 #[inline(always)]
-fn tr_handle_tandem_partition(
-    isa: &mut [i32],
-    sa: &mut [i32],
+fn tr_handle_tandem_partition<I: SaIndex>(
+    isa: &mut [I],
+    sa: &mut [I],
     stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
     state: &mut TrSortState<'_>,
     incr: usize,
@@ -530,7 +541,7 @@ fn tr_handle_tandem_partition(
     // SAFETY: isa and sa are non-overlapping (split_at_mut(m) in sort_typebstar), and the
     // `&mut isa` is not used while `isad_tandem` is live, so the shared reborrow is not
     // aliased by a writer. tr_partition only reads from isad_tandem and swaps elements in sa.
-    let isad_tandem: &[i32] = unsafe {
+    let isad_tandem: &[I] = unsafe {
         let offset = *state.isad - incr;
         core::slice::from_raw_parts(isa.as_ptr().add(offset), isa.len() - offset)
     };
@@ -540,19 +551,19 @@ fn tr_handle_tandem_partition(
         *state.first,
         *state.first,
         *state.last,
-        (*state.last as i32) - 1,
+        I::from_usize(*state.last) - I::ONE,
     );
 
     if a < *state.last {
-        let v = (a as i32) - 1;
+        let v = I::from_usize(a) - I::ONE;
         for k in *state.first..a {
-            isa[sa[k] as usize] = v;
+            isa[sa[k].to_usize()] = v;
         }
     }
     if b < *state.last {
-        let v = (b as i32) - 1;
+        let v = I::from_usize(b) - I::ONE;
         for k in a..b {
-            isa[sa[k] as usize] = v;
+            isa[sa[k].to_usize()] = v;
         }
     }
 
@@ -579,14 +590,14 @@ fn tr_handle_tandem_partition(
                 isad: *state.isad,
                 first: b,
                 last: *state.last,
-                limit: tr_ilg((*state.last - b) as i32),
+                limit: tr_ilg(*state.last - b),
                 trlink: *state.trlink,
             });
             *state.last = a;
-            *state.limit = tr_ilg((a - *state.first) as i32);
+            *state.limit = tr_ilg(a - *state.first);
         } else if *state.last - b > 1 {
             *state.first = b;
-            *state.limit = tr_ilg((*state.last - b) as i32);
+            *state.limit = tr_ilg(*state.last - b);
         } else {
             return tr_pop_stack(stack, state);
         }
@@ -595,14 +606,14 @@ fn tr_handle_tandem_partition(
             isad: *state.isad,
             first: *state.first,
             last: a,
-            limit: tr_ilg((a - *state.first) as i32),
+            limit: tr_ilg(a - *state.first),
             trlink: *state.trlink,
         });
         *state.first = b;
-        *state.limit = tr_ilg((*state.last - b) as i32);
+        *state.limit = tr_ilg(*state.last - b);
     } else if a - *state.first > 1 {
         *state.last = a;
-        *state.limit = tr_ilg((a - *state.first) as i32);
+        *state.limit = tr_ilg(a - *state.first);
     } else {
         return tr_pop_stack(stack, state);
     }
@@ -612,18 +623,18 @@ fn tr_handle_tandem_partition(
 /// Handles the negate/scan/budget case (limit < -2) in tr_introsort.
 /// Returns `false` if tr_introsort should return (stack exhausted).
 #[inline(always)]
-fn tr_handle_negate_scan(
-    isa: &mut [i32],
-    sa: &mut [i32],
+fn tr_handle_negate_scan<I: SaIndex>(
+    isa: &mut [I],
+    sa: &mut [I],
     stack: &mut FixedStack<TrFrame, { TR_STACKSIZE }>,
     state: &mut TrSortState<'_>,
     incr: usize,
-    budget: &mut TrBudget,
+    budget: &mut TrBudget<I>,
 ) -> bool {
-    if sa[*state.first] >= 0 {
+    if sa[*state.first] >= I::ZERO {
         let mut a = *state.first;
-        while a < *state.last && sa[a] >= 0 {
-            isa[sa[a] as usize] = a as i32;
+        while a < *state.last && sa[a] >= I::ZERO {
+            isa[sa[a].to_usize()] = I::from_usize(a);
             a += 1;
         }
         *state.first = a;
@@ -638,23 +649,23 @@ fn tr_handle_negate_scan(
 
     let mut a = first;
     loop {
-        sa[a] = !sa[a];
+        sa[a] = sa[a].bit_not();
         a += 1;
-        if a >= last || sa[a] >= 0 {
+        if a >= last || sa[a] >= I::ZERO {
             break;
         }
     }
-    let next = if a < last && isa[sa[a] as usize] != isa[isad + sa[a] as usize] {
-        tr_ilg((a - first + 1) as i32)
+    let next = if a < last && isa[sa[a].to_usize()] != isa[isad + sa[a].to_usize()] {
+        tr_ilg(a - first + 1)
     } else {
         -1
     };
     let run_end = if a < last {
         a += 1;
         if a < last {
-            let v = (a as i32) - 1;
+            let v = I::from_usize(a) - I::ONE;
             for k in first..a {
-                isa[sa[k] as usize] = v;
+                isa[sa[k].to_usize()] = v;
             }
         }
         a
@@ -662,7 +673,7 @@ fn tr_handle_negate_scan(
         last
     };
 
-    if budget.check((run_end - first) as i32) {
+    if budget.check(I::from_usize(run_end - first)) {
         if run_end - first <= last - run_end {
             stack.push(TrFrame {
                 isad,
@@ -730,13 +741,13 @@ const fn tr_pop_stack(
 ///   - `limit == -1`: tandem repeat partition phase
 ///   - `limit == -2`: copy/partial-copy phase
 ///   - `limit < -2`: negate/scan/budget-check phase
-fn tr_introsort(
-    isa: &mut [i32],
+fn tr_introsort<I: SaIndex>(
+    isa: &mut [I],
     isad_init: usize,
-    sa: &mut [i32],
+    sa: &mut [I],
     sa_first: usize,
     sa_last: usize,
-    budget: &mut TrBudget,
+    budget: &mut TrBudget<I>,
 ) {
     let incr = isad_init; // ISAd - ISA = isad_init (ISA is 0-based)
     let mut stack = FixedStack::<TrFrame, { TR_STACKSIZE }>::new();
@@ -744,7 +755,7 @@ fn tr_introsort(
     let mut isad = isad_init;
     let mut first = sa_first;
     let mut last = sa_last;
-    let mut limit = tr_ilg((last - first) as i32);
+    let mut limit = tr_ilg(last - first);
     let mut trlink: i32 = -1;
 
     loop {
@@ -766,12 +777,12 @@ fn tr_introsort(
                 let b = popped.last;
                 let d_flag = popped.limit;
                 if d_flag == 0 {
-                    tr_copy(isa, sa, first, a, b, last, isad as i32);
+                    tr_copy(isa, sa, first, a, b, last, I::from_usize(isad));
                 } else {
                     if trlink >= 0 {
                         stack[trlink as usize].limit = -1;
                     }
-                    tr_partialcopy(isa, sa, first, a, b, last, isad as i32);
+                    tr_partialcopy(isa, sa, first, a, b, last, I::from_usize(isad));
                 }
                 if let Some(f) = stack.pop() {
                     isad = f.isad;
@@ -811,14 +822,14 @@ fn tr_introsort(
             // after heapsort, mark duplicates
             let mut a = last - 1;
             while a > first {
-                let x = isa[isad + sa[a] as usize];
+                let x = isa[isad + sa[a].to_usize()];
                 let mut b = a;
                 loop {
-                    if b <= first || sa[b - 1] < 0 || isa[isad + sa[b - 1] as usize] != x {
+                    if b <= first || sa[b - 1] < I::ZERO || isa[isad + sa[b - 1].to_usize()] != x {
                         break;
                     }
                     b -= 1;
-                    sa[b] = !sa[b];
+                    sa[b] = sa[b].bit_not();
                 }
                 if b == first {
                     break;
@@ -831,35 +842,35 @@ fn tr_introsort(
 
         let pivot_idx = tr_pivot_idx(&isa[isad..], sa, first, last);
         sa.swap(first, pivot_idx);
-        let v = isa[isad + sa[first] as usize];
+        let v = isa[isad + sa[first].to_usize()];
 
         // SAFETY: Same aliasing argument as the isad_tandem case above: tr_partition reads from
         // isad_slice (= isa[isad..]) and swaps within sa; isa and sa are disjoint.
         // After tr_partition returns the slice is no longer live, so the subsequent reads
         // and writes to isa are safe with no aliased reference outstanding.
-        let isad_slice: &[i32] =
+        let isad_slice: &[I] =
             unsafe { core::slice::from_raw_parts(isa.as_ptr().add(isad), isa.len() - isad) };
         let (a, b) = tr_partition_owned(isad_slice, sa, first, first + 1, last, v);
 
         if last - first != b - a {
-            let next = if isa[sa[a] as usize] != v {
-                tr_ilg((b - a) as i32)
+            let next = if isa[sa[a].to_usize()] != v {
+                tr_ilg(b - a)
             } else {
                 -1
             };
 
-            let v2 = (a as i32) - 1;
+            let v2 = I::from_usize(a) - I::ONE;
             for k in first..a {
-                isa[sa[k] as usize] = v2;
+                isa[sa[k].to_usize()] = v2;
             }
             if b < last {
-                let v3 = (b as i32) - 1;
+                let v3 = I::from_usize(b) - I::ONE;
                 for k in a..b {
-                    isa[sa[k] as usize] = v3;
+                    isa[sa[k].to_usize()] = v3;
                 }
             }
 
-            if b - a > 1 && budget.check((b - a) as i32) {
+            if b - a > 1 && budget.check(I::from_usize(b - a)) {
                 let mut state = TrSortState {
                     isad: &mut isad,
                     first: &mut first,
@@ -914,8 +925,8 @@ fn tr_introsort(
                     return;
                 }
             }
-        } else if budget.check((last - first) as i32) {
-            limit = tr_ilg((last - first) as i32);
+        } else if budget.check(I::from_usize(last - first)) {
+            limit = tr_ilg(last - first);
             isad += incr;
         } else {
             if trlink >= 0 {
@@ -934,13 +945,13 @@ fn tr_introsort(
     }
 }
 
-fn tr_partition_owned(
-    isad: &[i32],
-    sa: &mut [i32],
+fn tr_partition_owned<I: SaIndex>(
+    isad: &[I],
+    sa: &mut [I],
     first: usize,
     middle: usize,
     last: usize,
-    v: i32,
+    v: I,
 ) -> (usize, usize) {
     tr_partition(isad, sa, first, middle, last, v)
 }
@@ -1115,38 +1126,38 @@ const fn push5_and_continue(
 ///
 /// `isa` and `sa` are the two halves of the working buffer (split at position m).
 /// Called from `sort_typebstar` after sssort completes.
-pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: Depth) {
-    let n = n as usize;
-    let mut budget = TrBudget::new(tr_ilg(n as i32) * 2 / 3, n as i32);
+pub fn trsort<I: SaIndex>(isa: &mut [I], sa: &mut [I], n: usize, depth: usize) {
+    let mut budget = TrBudget::new(tr_ilg(n) * 2 / 3, I::from_usize(n));
+    let neg_n = I::ZERO - I::from_usize(n);
 
-    let mut isad = depth as usize;
-    while sa[0] > -(n as i32) {
+    let mut isad = depth;
+    while sa[0] > neg_n {
         let mut first = 0usize;
-        let mut skip = 0i32;
-        let mut unsorted = 0i32;
+        let mut skip = I::ZERO;
+        let mut unsorted = I::ZERO;
 
         loop {
             let t = sa[first];
-            if t < 0 {
-                first = (first as i32 - t) as usize;
+            if t < I::ZERO {
+                first = (first as isize - t.to_isize()) as usize;
                 skip += t;
             } else {
-                if skip != 0 {
-                    // C: *(first + skip) = skip where skip is negative (signed i32 pointer arithmetic)
-                    sa[(first as i32 + skip) as usize] = skip;
-                    skip = 0;
+                if skip != I::ZERO {
+                    // C: *(first + skip) = skip where skip is negative (signed pointer arithmetic)
+                    sa[(first as isize + skip.to_isize()) as usize] = skip;
+                    skip = I::ZERO;
                 }
-                let last = (isa[t as usize] + 1) as usize;
+                let last = (isa[t.to_usize()] + I::ONE).to_usize();
                 if last - first > 1 {
-                    budget.count = 0;
+                    budget.count = I::ZERO;
                     tr_introsort(isa, isad, sa, first, last, &mut budget);
-                    if budget.count != 0 {
+                    if budget.count != I::ZERO {
                         unsorted += budget.count;
                     } else {
-                        skip = first as i32 - last as i32;
+                        skip = I::from_isize(first as isize - last as isize);
                     }
                 } else if last - first == 1 {
-                    skip = -1;
+                    skip = I::ZERO - I::ONE;
                 }
                 first = last;
             }
@@ -1154,10 +1165,10 @@ pub fn trsort(isa: &mut [i32], sa: &mut [i32], n: i32, depth: Depth) {
                 break;
             }
         }
-        if skip != 0 {
-            sa[(first as i32 + skip) as usize] = skip;
+        if skip != I::ZERO {
+            sa[(first as isize + skip.to_isize()) as usize] = skip;
         }
-        if unsorted == 0 {
+        if unsorted == I::ZERO {
             break;
         }
         isad += isad; // ISAd += ISAd - ISA → new_isad = isad + isad = 2*isad (since ISA=0)
@@ -1221,7 +1232,7 @@ mod tests {
         let mut sa = [1i32, 3, 0, 6, 2, 4, 7, 5];
         tr_heapsort(&isad, &mut sa, 0, 8);
         for i in 1..sa.len() {
-            assert!(isad[sa[i - 1] as usize] <= isad[sa[i] as usize]);
+            assert!(isad[sa[i - 1].to_usize()] <= isad[sa[i].to_usize()]);
         }
     }
 

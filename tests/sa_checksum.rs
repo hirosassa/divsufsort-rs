@@ -27,7 +27,7 @@ fn sa_checksum(t: &[u8]) -> u64 {
 
 fn bwt_checksum(t: &[u8]) -> u64 {
     let mut u = vec![0u8; t.len()];
-    let idx = divbwt(t, &mut u, None).unwrap();
+    let idx = divbwt::<i32>(t, &mut u, None).unwrap();
     fnv1a(u.iter().map(|&x| x as u64).chain([idx as u64]))
 }
 

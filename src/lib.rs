@@ -9,11 +9,13 @@ mod constants;
 mod divsufsort;
 #[cfg(feature = "c-bench")]
 pub mod ffi;
+mod sa_index;
 mod sssort;
 mod trsort;
 mod utils;
 
 pub use divsufsort::{divbwt, divsufsort};
+pub use sa_index::SaIndex;
 pub use utils::{
     SufCheckError, bw_transform, inverse_bw_transform, sa_search, sa_simplesearch, sufcheck,
 };

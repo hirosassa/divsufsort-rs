@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 
 use crate::DivSufSortError;
 use crate::constants::ALPHABET_SIZE;
+use crate::sa_index::SaIndex;
 
 /// Error returned by [`sufcheck`] when the suffix array is found to be invalid.
 #[derive(Debug, PartialEq, Eq)]
@@ -33,7 +34,11 @@ impl std::error::Error for SufCheckError {}
 /// # Errors
 ///
 /// Returns [`SufCheckError`] describing the first inconsistency found.
-pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<(), SufCheckError> {
+pub fn sufcheck<I: SaIndex>(
+    t: &[u8],
+    sa: &[I],
+    #[allow(unused)] verbose: bool,
+) -> Result<(), SufCheckError> {
     let n = t.len();
 
     if n == 0 {
@@ -54,8 +59,8 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
     }
 
     for (i, &s) in sa.iter().enumerate().take(n) {
-        if s < 0 || s as usize >= n {
-            let msg = format!("Out of the range [0,{}]. SA[{}]={}", n - 1, i, s);
+        if s < I::ZERO || s.to_usize() >= n {
+            let msg = format!("Out of the range [0,{}]. SA[{}]={:?}", n - 1, i, s);
             #[cfg(feature = "std")]
             if verbose {
                 std::eprintln!("sufcheck: {msg}");
@@ -65,15 +70,15 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
     }
 
     for i in 1..n {
-        if t[sa[i - 1] as usize] > t[sa[i] as usize] {
+        if t[sa[i - 1].to_usize()] > t[sa[i].to_usize()] {
             let msg = format!(
-                "Suffixes in wrong order. T[SA[{}]={}]={} > T[SA[{}]={}]={}",
+                "Suffixes in wrong order. T[SA[{}]={:?}]={} > T[SA[{}]={:?}]={}",
                 i - 1,
                 sa[i - 1],
-                t[sa[i - 1] as usize],
+                t[sa[i - 1].to_usize()],
                 i,
                 sa[i],
-                t[sa[i] as usize]
+                t[sa[i].to_usize()]
             );
             #[cfg(feature = "std")]
             if verbose {
@@ -83,11 +88,13 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
         }
     }
 
-    let mut c_table = [0i32; ALPHABET_SIZE];
+    // Counters are `i64` regardless of `I`: the table holds `-1` as a "no more entries"
+    // sentinel and must be able to represent every position up to `n`.
+    let mut c_table = [0i64; ALPHABET_SIZE];
     for &ch in t {
         c_table[ch as usize] += 1;
     }
-    let mut p = 0i32;
+    let mut p = 0i64;
     for entry in c_table.iter_mut() {
         let t_val = *entry;
         *entry = p;
@@ -99,19 +106,28 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
 
     for i in 0..n {
         let sai = sa[i];
-        let (c, t_val) = if sai > 0 {
-            let c = t[(sai - 1) as usize] as usize;
+        let (c, t_val) = if sai > I::ZERO {
+            let c = t[(sai - I::ONE).to_usize()] as usize;
             (c, c_table[c])
         } else {
             let c = t[n - 1] as usize;
             (c, q)
         };
 
-        if t_val < 0 || sa[t_val as usize] != (if sai > 0 { sai - 1 } else { (n - 1) as i32 }) {
+        let expected = if sai > I::ZERO {
+            sai - I::ONE
+        } else {
+            I::from_usize(n - 1)
+        };
+        if t_val < 0 || sa[t_val as usize] != expected {
             let msg = format!(
-                "Suffix in wrong position. SA[{}]={} or SA[{}]={}",
+                "Suffix in wrong position. SA[{}]={} or SA[{}]={:?}",
                 t_val,
-                if t_val >= 0 { sa[t_val as usize] } else { -1 },
+                if t_val >= 0 {
+                    sa[t_val as usize].to_i64()
+                } else {
+                    -1
+                },
                 i,
                 sa[i]
             );
@@ -124,7 +140,7 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
 
         if t_val != q {
             c_table[c] += 1;
-            if c_table[c] as usize >= n || t[sa[c_table[c] as usize] as usize] as usize != c {
+            if c_table[c] as usize >= n || t[sa[c_table[c] as usize].to_usize()] as usize != c {
                 c_table[c] = -1;
             }
         }
@@ -137,11 +153,11 @@ pub fn sufcheck(t: &[u8], sa: &[i32], #[allow(unused)] verbose: bool) -> Result<
     Ok(())
 }
 
-const fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
-    let mut i = 0i32;
+const fn binarysearch_lower(a: &[usize], mut size: usize, value: usize) -> usize {
+    let mut i = 0usize;
     let mut half = size >> 1;
     while 0 < size {
-        if a[(i + half) as usize] < value {
+        if a[i + half] < value {
             i += half + 1;
             half -= (size & 1) ^ 1;
         }
@@ -162,20 +178,21 @@ const fn binarysearch_lower(a: &[i32], mut size: i32, value: i32) -> i32 {
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if `u` is shorter than `t`, or if a provided
 /// `sa` is shorter than `t`, has an entry outside `0..t.len()`, or does not contain exactly
-/// one `0` in its first `t.len()` entries.
+/// one `0` in its first `t.len()` entries. Also returns it if `t.len()` exceeds `I::MAX`
+/// (when computing via [`crate::divbwt`]).
 ///
 /// A provided `sa` is not checked to be a permutation (use [`sufcheck`] for that). If it is
 /// not a valid suffix array of `t`, the output is unspecified, but the call does not panic.
-pub fn bw_transform(
+pub fn bw_transform<I: SaIndex>(
     t: &[u8],
     u: &mut [u8],
-    sa: Option<&mut [i32]>,
-    idx: &mut i32,
+    sa: Option<&mut [I]>,
+    idx: &mut I,
 ) -> Result<(), DivSufSortError> {
     let n = t.len();
 
     if n == 0 {
-        *idx = 0;
+        *idx = I::ZERO;
         return Ok(());
     }
     if u.len() < n || sa.as_ref().is_some_and(|a| a.len() < n) {
@@ -183,14 +200,14 @@ pub fn bw_transform(
     }
     if n == 1 {
         u[0] = t[0];
-        *idx = 1;
+        *idx = I::ONE;
         return Ok(());
     }
 
     match sa {
         None => {
             // delegate to divbwt
-            let primary_idx = crate::divbwt(t, u, None)?;
+            let primary_idx = crate::divbwt::<I>(t, u, None)?;
             *idx = primary_idx;
         }
         Some(a) => {
@@ -198,10 +215,10 @@ pub fn bw_transform(
             // stops at the single zero entry instead of running past the end of `a`.
             let mut zeros = 0usize;
             for &v in &a[..n] {
-                if usize::try_from(v).map_or(true, |v| v >= n) {
+                if v < I::ZERO || v.to_usize() >= n {
                     return Err(DivSufSortError::InvalidArgument);
                 }
-                zeros += usize::from(v == 0);
+                zeros += usize::from(v == I::ZERO);
             }
             if zeros != 1 {
                 return Err(DivSufSortError::InvalidArgument);
@@ -210,14 +227,14 @@ pub fn bw_transform(
             // T != U case (straightforward implementation)
             u[0] = t[n - 1];
             let mut i = 0usize;
-            while a[i] != 0 {
-                u[i + 1] = t[(a[i] - 1) as usize];
+            while a[i] != I::ZERO {
+                u[i + 1] = t[(a[i] - I::ONE).to_usize()];
                 i += 1;
             }
-            *idx = (i + 1) as i32;
+            *idx = I::from_usize(i + 1);
             i += 1;
             while i < n {
-                u[i] = t[(a[i] - 1) as usize];
+                u[i] = t[(a[i] - I::ONE).to_usize()];
                 i += 1;
             }
         }
@@ -234,16 +251,19 @@ pub fn bw_transform(
 /// # Errors
 ///
 /// Returns [`DivSufSortError::InvalidArgument`] if `idx` is out of range, `u` is shorter
-/// than `t`, or `a` is too short.
-pub fn inverse_bw_transform(
+/// than `t`, `a` is too short, or `t.len()` exceeds `I::MAX`.
+pub fn inverse_bw_transform<I: SaIndex>(
     t: &[u8],
     u: &mut [u8],
-    a: Option<&mut [i32]>,
-    idx: i32,
+    a: Option<&mut [I]>,
+    idx: I,
 ) -> Result<(), DivSufSortError> {
     let n = t.len();
 
-    if idx < 0 || idx as usize > n || (n > 0 && idx == 0) {
+    if n > I::MAX.to_usize() {
+        return Err(DivSufSortError::InvalidArgument);
+    }
+    if idx < I::ZERO || idx.to_usize() > n || (n > 0 && idx == I::ZERO) {
         return Err(DivSufSortError::InvalidArgument);
     }
     if u.len() < n {
@@ -256,8 +276,8 @@ pub fn inverse_bw_transform(
         return Ok(());
     }
 
-    let mut b_buf: Vec<i32>;
-    let b: &mut [i32] = match a {
+    let mut b_buf: Vec<I>;
+    let b: &mut [I] = match a {
         Some(ref_a) => {
             if ref_a.len() < n {
                 return Err(DivSufSortError::InvalidArgument);
@@ -265,12 +285,12 @@ pub fn inverse_bw_transform(
             ref_a
         }
         None => {
-            b_buf = vec![0i32; n];
+            b_buf = vec![I::ZERO; n];
             &mut b_buf
         }
     };
 
-    let mut c_table = [0i32; ALPHABET_SIZE];
+    let mut c_table = [0usize; ALPHABET_SIZE];
     for &ch in t {
         c_table[ch as usize] += 1;
     }
@@ -278,7 +298,7 @@ pub fn inverse_bw_transform(
     // convert C table to cumulative sums and record seen characters in D
     let mut d_buf = [0u8; ALPHABET_SIZE];
     let mut d_len = 0usize;
-    let mut acc = 0i32;
+    let mut acc = 0usize;
     for (c, cnt_ref) in c_table.iter_mut().enumerate() {
         let cnt = *cnt_ref;
         if cnt > 0 {
@@ -289,40 +309,42 @@ pub fn inverse_bw_transform(
         }
     }
 
-    let idx_usize = idx as usize;
+    let idx_usize = idx.to_usize();
     for i in 0..idx_usize {
-        b[c_table[t[i] as usize] as usize] = i as i32;
+        b[c_table[t[i] as usize]] = I::from_usize(i);
         c_table[t[i] as usize] += 1;
     }
     for i in idx_usize..n {
-        b[c_table[t[i] as usize] as usize] = (i + 1) as i32;
+        b[c_table[t[i] as usize]] = I::from_usize(i + 1);
         c_table[t[i] as usize] += 1;
     }
 
     let d = &d_buf[..d_len];
-    let mut c_d = vec![0i32; d_len];
+    let mut c_d = vec![0usize; d_len];
     for (ci, &dc) in d.iter().enumerate() {
         c_d[ci] = c_table[dc as usize];
     }
 
-    let mut p = idx;
+    let mut p = idx_usize;
     for u_elem in u.iter_mut().take(n) {
-        let pos = binarysearch_lower(&c_d, d_len as i32, p);
-        *u_elem = d[pos as usize];
-        p = b[(p - 1) as usize];
+        let pos = binarysearch_lower(&c_d, d_len, p);
+        *u_elem = d[pos];
+        p = b[p - 1].to_usize();
     }
 
     Ok(())
 }
 
-const fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
-    let tsize = t.len() as i32;
-    let psize = p.len() as i32;
+// The search routines below work in `i64` internally (they use `-1` sentinels and signed
+// halving) and convert to/from `I` only at the API boundary.
+fn compare(t: &[u8], p: &[u8], suf: i64, match_len: &mut i64) -> i64 {
+    let tsize = t.len() as i64;
+    let psize = p.len() as i64;
     let mut i = suf + *match_len;
     let mut j = *match_len;
-    let mut r = 0i32;
+    let mut r = 0i64;
     while i < tsize && j < psize {
-        r = t[i as usize] as i32 - p[j as usize] as i32;
+        r = i64::from(t[i as usize]) - i64::from(p[j as usize]);
         if r != 0 {
             break;
         }
@@ -341,29 +363,29 @@ const fn compare(t: &[u8], p: &[u8], suf: i32, match_len: &mut i32) -> i32 {
 ///
 /// Returns `(count, left)` where `count` is the number of occurrences and `left` is the
 /// leftmost index in `sa` at which a match starts. If `count == 0`, `left` is undefined.
-pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
-    let tsize = t.len() as i32;
-    let psize = p.len() as i32;
-    let sasize = sa.len() as i32;
+pub fn sa_search<I: SaIndex>(t: &[u8], p: &[u8], sa: &[I]) -> (I, I) {
+    let tsize = t.len() as i64;
+    let psize = p.len() as i64;
+    let sasize = sa.len() as i64;
 
     if sasize == 0 || tsize == 0 {
-        return (0, -1);
+        return (I::ZERO, I::ZERO - I::ONE);
     }
     if psize == 0 {
-        return (sasize, 0);
+        return (I::from_isize(sasize as isize), I::ZERO);
     }
 
-    let mut i = 0i32;
-    let mut j = 0i32;
-    let mut k = 0i32;
-    let mut lmatch = 0i32;
-    let mut rmatch = 0i32;
+    let mut i = 0i64;
+    let mut j = 0i64;
+    let mut k = 0i64;
+    let mut lmatch = 0i64;
+    let mut rmatch = 0i64;
     let mut size = sasize;
     let mut half = size >> 1;
 
     while 0 < size {
         let mut match_len = lmatch.min(rmatch);
-        let r = compare(t, p, sa[(i + half) as usize], &mut match_len);
+        let r = compare(t, p, sa[(i + half) as usize].to_i64(), &mut match_len);
         if r < 0 {
             i += half + 1;
             half -= (size & 1) ^ 1;
@@ -382,7 +404,7 @@ pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
             let mut lhalf = lsize2 >> 1;
             while 0 < lsize2 {
                 let mut lm = llmatch.min(lrmatch);
-                let lr = compare(t, p, sa[(j + lhalf) as usize], &mut lm);
+                let lr = compare(t, p, sa[(j + lhalf) as usize].to_i64(), &mut lm);
                 if lr < 0 {
                     j += lhalf + 1;
                     lhalf -= (lsize2 & 1) ^ 1;
@@ -400,7 +422,7 @@ pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
             let mut rhalf = rsize2 >> 1;
             while 0 < rsize2 {
                 let mut rm = rlmatch.min(rrmatch);
-                let rr = compare(t, p, sa[(k + rhalf) as usize], &mut rm);
+                let rr = compare(t, p, sa[(k + rhalf) as usize].to_i64(), &mut rm);
                 if rr <= 0 {
                     k += rhalf + 1;
                     rhalf -= (rsize2 & 1) ^ 1;
@@ -420,32 +442,32 @@ pub fn sa_search(t: &[u8], p: &[u8], sa: &[i32]) -> (i32, i32) {
 
     let count = k - j;
     let left = if count > 0 { j } else { i };
-    (count, left)
+    (I::from_isize(count as isize), I::from_isize(left as isize))
 }
 
 /// Searches for a single character `c` in text `t` using the suffix array `sa`.
 ///
 /// Returns `(count, left)` where `count` is the number of occurrences and `left` is the
 /// leftmost index in `sa` at which a match starts. If `count == 0`, `left` is undefined.
-pub const fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
-    let tsize = t.len() as i32;
-    let sasize = sa.len() as i32;
-    let c = c as i32;
+pub fn sa_simplesearch<I: SaIndex>(t: &[u8], sa: &[I], c: u8) -> (I, I) {
+    let tsize = t.len() as i64;
+    let sasize = sa.len() as i64;
+    let c = i64::from(c);
 
     if sasize == 0 || tsize == 0 {
-        return (0, -1);
+        return (I::ZERO, I::ZERO - I::ONE);
     }
 
-    let mut i = 0i32;
-    let mut j = 0i32;
-    let mut k = 0i32;
+    let mut i = 0i64;
+    let mut j = 0i64;
+    let mut k = 0i64;
     let mut size = sasize;
     let mut half = size >> 1;
 
     while 0 < size {
-        let p = sa[(i + half) as usize];
+        let p = sa[(i + half) as usize].to_i64();
         let r = if p < tsize {
-            t[p as usize] as i32 - c
+            i64::from(t[p as usize]) - c
         } else {
             -1
         };
@@ -461,9 +483,9 @@ pub const fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
             let mut lsize2 = lsize;
             let mut lhalf = lsize2 >> 1;
             while 0 < lsize2 {
-                let lp = sa[(j + lhalf) as usize];
+                let lp = sa[(j + lhalf) as usize].to_i64();
                 let lr = if lp < tsize {
-                    t[lp as usize] as i32 - c
+                    i64::from(t[lp as usize]) - c
                 } else {
                     -1
                 };
@@ -478,9 +500,9 @@ pub const fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
             let mut rsize2 = rsize;
             let mut rhalf = rsize2 >> 1;
             while 0 < rsize2 {
-                let rp = sa[(k + rhalf) as usize];
+                let rp = sa[(k + rhalf) as usize].to_i64();
                 let rr = if rp < tsize {
-                    t[rp as usize] as i32 - c
+                    i64::from(t[rp as usize]) - c
                 } else {
                     -1
                 };
@@ -500,7 +522,7 @@ pub const fn sa_simplesearch(t: &[u8], sa: &[i32], c: u8) -> (i32, i32) {
 
     let count = k - j;
     let left = if count > 0 { j } else { i };
-    (count, left)
+    (I::from_isize(count as isize), I::from_isize(left as isize))
 }
 
 #[cfg(test)]
@@ -509,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_sufcheck_empty() {
-        assert_eq!(sufcheck(b"", &[], false), Ok(()));
+        assert_eq!(sufcheck::<i32>(b"", &[], false), Ok(()));
     }
 
     #[test]
@@ -542,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_sa_search_empty_sa() {
-        let (count, _) = sa_search(b"banana", b"an", &[]);
+        let (count, _) = sa_search::<i32>(b"banana", b"an", &[]);
         assert_eq!(count, 0);
     }
 
@@ -738,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_binarysearch_lower() {
-        let a = [3i32, 4, 6];
+        let a = [3usize, 4, 6];
         assert_eq!(binarysearch_lower(&a, 3, 3), 0);
         assert_eq!(binarysearch_lower(&a, 3, 4), 1);
         assert_eq!(binarysearch_lower(&a, 3, 5), 2);

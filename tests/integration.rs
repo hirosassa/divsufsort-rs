@@ -25,7 +25,7 @@ fn assert_sufcheck(t: &[u8]) {
 fn assert_bwt_roundtrip(t: &[u8]) {
     let n = t.len();
     let mut bwt = vec![0u8; n];
-    let pidx = divbwt(t, &mut bwt, None).unwrap();
+    let pidx = divbwt::<i32>(t, &mut bwt, None).unwrap();
     let mut restored = vec![0u8; n];
     inverse_bw_transform(&bwt, &mut restored, None, pidx).unwrap();
     assert_eq!(restored, t, "BWT roundtrip failed for input {:?}", t);
@@ -391,7 +391,7 @@ fn test_divbwt_ignores_scratch_contents_and_uses_it() {
     for t in memory_test_inputs() {
         let n = t.len();
         let mut expected = vec![0u8; n];
-        let expected_idx = divbwt(&t, &mut expected, None).unwrap();
+        let expected_idx = divbwt::<i32>(&t, &mut expected, None).unwrap();
         for (len, fill) in [
             (n, -1i32),
             (n, 0x5555_5555),
@@ -400,7 +400,7 @@ fn test_divbwt_ignores_scratch_contents_and_uses_it() {
         ] {
             let mut scratch = vec![fill; len];
             let mut u = vec![0u8; n];
-            let idx = divbwt(&t, &mut u, Some(&mut scratch)).unwrap();
+            let idx = divbwt::<i32>(&t, &mut u, Some(&mut scratch)).unwrap();
             assert_eq!(
                 (idx, &u),
                 (expected_idx, &expected),

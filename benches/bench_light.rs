@@ -83,7 +83,7 @@ fn bench_divbwt_light(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(size), &data, |b, data| {
             b.iter_batched_ref(
                 || vec![0u8; data.len()],
-                |u| divbwt(data, u, None).unwrap(),
+                |u| divbwt::<i32>(data, u, None).unwrap(),
                 BatchSize::LargeInput,
             )
         });
